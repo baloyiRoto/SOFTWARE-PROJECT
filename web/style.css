@@ -1,0 +1,219 @@
+/* 1. SETUP & VARIABLES */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --white: #ffffff;
+    --bg: #faf8ff;
+    --purple: #6c3fc5;
+    --purple-light: #ede8fb;
+    --purple-mid: #9b72ef;
+    --purple-dark: #3d1f8a;
+    --border: #e4ddf7;
+    --text: #1a1025;
+    --muted: #7a6f8e;
+    --success: #2ecc71;
+    --danger: #e74c3c;
+}
+
+body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+}
+
+/* 2. NAVIGATION BAR (Menu Design Marks [cite: 5]) */
+header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 0 52px;
+    height: 68px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 20px rgba(108, 63, 197, 0.06);
+}
+
+.logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--purple-dark);
+    letter-spacing: -0.02em;
+}
+
+.logo span {
+    color: var(--purple);
+}
+
+.nav {
+    display: flex;
+    gap: 8px;
+}
+
+.nav a {
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.nav a:hover {
+    background: var(--purple-light);
+    color: var(--purple);
+}
+
+.nav a.active {
+    background: var(--purple);
+    color: white;
+}
+
+/* 3. LAYOUT & CARDS */
+main {
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+}
+
+.page-hero {
+    margin-bottom: 40px;
+}
+
+.page-hero h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--purple-dark);
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+
+.page-hero h1 em {
+    font-style: normal;
+    color: var(--purple);
+}
+
+.page-hero p {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+
+.card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 4px 24px rgba(108, 63, 197, 0.07);
+}
+
+.card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--purple-dark);
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* 4. FORMS & INPUTS (Control Design Marks ) */
+.field {
+    margin-bottom: 18px;
+}
+
+.field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 7px;
+}
+
+.field input, .field select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    transition: all 0.2s;
+}
+
+.field input:focus, .field select:focus {
+    border-color: var(--purple);
+    box-shadow: 0 0 0 3px rgba(108, 63, 197, 0.12);
+}
+
+.btn {
+    width: 100%;
+    padding: 13px;
+    background: var(--purple);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.btn:hover {
+    background: var(--purple-dark);
+}
+
+/* 5. TABLES & RECORDS */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+td {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+}
+
+.role-pill {
+    padding: 3px 11px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.role-STUDENT { background: var(--purple-light); color: var(--purple); }
+.role-ADMIN { background: #fff5e6; color: #ff9800; }
