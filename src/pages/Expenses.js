@@ -26,6 +26,8 @@ function Expenses({ users = [] }) {
   const [nextID, setNextID] = useState(() => {
     try { const s = localStorage.getItem('ss_expenses_nid'); return s ? parseInt(s) : 11; }
     catch { return 11; }
+
+
   });
 
   useEffect(() => { localStorage.setItem('ss_expenses', JSON.stringify(expenses)); }, [expenses]);

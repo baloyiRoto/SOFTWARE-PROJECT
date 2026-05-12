@@ -34,7 +34,6 @@ function Users({ users, setUsers, nextUserID, setNextUserID }) {
     setUsers(prev => [newUser, ...prev]);        // updates App.js state instantly
     setNextUserID(prev => prev + 1);             // updates App.js counter
     setUsername(''); setEmail(''); setPassword('');
-    showAlert(`✅ "${username.trim()}" added! They now appear in Budgets & Expenses dropdowns.`);
   };
 
   // UPDATE
@@ -59,7 +58,7 @@ function Users({ users, setUsers, nextUserID, setNextUserID }) {
     <main>
       <div className="page-hero">
         <h1>User <em>Management</em></h1>
-        <p>Add users here — they appear instantly in Budgets &amp; Expenses</p>
+        <p> Add users here </p>
       </div>
 
       {alert.show && <div className={`alert show ${alert.type}`}>{alert.msg}</div>}
