@@ -17,7 +17,7 @@ const INITIAL_EXPENSES = [
 ];
 
 // users prop comes LIVE from App.js — always up to date
-function Expenses({ users = [] }) {
+function Expenses({ users = [], currentUser = {} }) {
 
   const [expenses, setExpenses] = useState(() => {
     try { const s = localStorage.getItem('ss_expenses'); return s ? JSON.parse(s) : INITIAL_EXPENSES; }
@@ -44,10 +44,20 @@ function Expenses({ users = [] }) {
   const [delID,       setDelID]       = useState(null);
   const [alert,       setAlert]       = useState({ show:false, msg:'', type:'' });
 
-  // When users list updates (new user added), set default selection
+  const isAdmin = currentUser.role === 'admin';
+  const visibleExpenses = isAdmin
+    ? expenses
+    : expenses.filter(expense => expense.userID === currentUser.userID);
+
+  // Bind the add form to the logged-in student, or the first user for admin editing.
   useEffect(() => {
+    if (!isAdmin && currentUser.userID) {
+      setUserID(String(currentUser.userID));
+      return;
+    }
+
     if (users.length > 0 && !userID) setUserID(String(users[0].userID));
-  }, [users]);
+  }, [users, currentUser, isAdmin, userID]);
 
   const showAlert = (msg, type='alert-success') => {
     setAlert({ show:true, msg, type });
@@ -96,18 +106,12 @@ function Expenses({ users = [] }) {
 
       <div className="layout">
         {/* ── ADD FORM ── */}
+        {!isAdmin && (
         <div className="card">
           <div className="card-title">Add New Expense</div>
 
           <div className="field"><label>Student</label>
-            {users.length === 0
-              ? <p style={{color:'#e11d48',fontSize:'13px'}}>⚠ No users found. Add a user first on the Users page.</p>
-              : <select value={userID} onChange={e => setUserID(e.target.value)}>
-                  {users.map(u => (
-                    <option key={u.userID} value={u.userID}>{u.username}</option>
-                  ))}
-                </select>
-            }</div>
+            <input type="text" value={currentUser.username} disabled /></div>
 
           <div className="field"><label>Category</label>
             <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
@@ -128,15 +132,16 @@ function Expenses({ users = [] }) {
 
           <button className="btn" onClick={addExpense} disabled={users.length === 0}>Add Expense</button>
         </div>
+        )}
 
         {/* ── TABLE ── */}
-        <div className="card">
+        <div className={`card ${isAdmin ? 'admin-only-full' : ''}`}>
           <div className="card-title">All Expenses</div>
-          <div className="table-top"><span className="badge-count">{expenses.length} records</span></div>
+          <div className="table-top"><span className="badge-count">{visibleExpenses.length} records</span></div>
           <table>
             <thead><tr><th>ID</th><th>Student</th><th>Category</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead>
             <tbody>
-              {expenses.map(e => (
+              {visibleExpenses.map(e => (
                 <tr key={e.expenseID}>
                   <td className="id-cell">#{e.expenseID}</td>
                   <td><strong>{getName(e.userID)}</strong></td>

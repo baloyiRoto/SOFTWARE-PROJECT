@@ -16,7 +16,7 @@ const INITIAL_BUDGETS = [
 ];
 
 // users prop comes LIVE from App.js — always up to date
-function Budgets({ users = [] }) {
+function Budgets({ users = [], currentUser = {} }) {
 
   const [budgets, setBudgets] = useState(() => {
     try { const s = localStorage.getItem('ss_budgets'); return s ? JSON.parse(s) : INITIAL_BUDGETS; }
@@ -42,10 +42,24 @@ function Budgets({ users = [] }) {
   const [delID,      setDelID]      = useState(null);
   const [alert,      setAlert]      = useState({ show:false, msg:'', type:'' });
 
-  // When users list changes (new user added), update selected user if blank
+  const isAdmin = currentUser.role === 'admin';
+  const visibleBudgets = isAdmin
+    ? budgets
+    : budgets.filter(budget => budget.userID === currentUser.userID);
+  const total = visibleBudgets.reduce((sum, budget) => sum + budget.amount, 0);
+  const studentCount = isAdmin
+    ? new Set(visibleBudgets.map(budget => budget.userID)).size
+    : 1;
+
+  // Bind the add form to the logged-in student, or the first user for admin editing.
   useEffect(() => {
+    if (!isAdmin && currentUser.userID) {
+      setUserID(String(currentUser.userID));
+      return;
+    }
+
     if (users.length > 0 && !userID) setUserID(String(users[0].userID));
-  }, [users]);
+  }, [users, currentUser, isAdmin, userID]);
 
   const showAlert = (msg, type='alert-success') => {
     setAlert({ show:true, msg, type });
@@ -84,8 +98,6 @@ function Budgets({ users = [] }) {
     showAlert('Budget deleted.');
   };
 
-  const total = budgets.reduce((s,b) => s + b.amount, 0);
-
   return (
     <main>
       <div className="page-hero">
@@ -98,25 +110,19 @@ function Budgets({ users = [] }) {
         <div className="stat"><div className="stat-label">Total Budgeted</div>
           <div className="stat-value"><span>R</span>{total.toLocaleString()}</div></div>
         <div className="stat"><div className="stat-label">Budget Records</div>
-          <div className="stat-value">{budgets.length}</div></div>
+          <div className="stat-value">{visibleBudgets.length}</div></div>
         <div className="stat"><div className="stat-label">Students in System</div>
-          <div className="stat-value">{users.length}</div></div>
+          <div className="stat-value">{studentCount}</div></div>
       </div>
 
       <div className="layout">
         {/* ── ADD FORM ── */}
+        {!isAdmin && (
         <div className="card">
           <div className="card-title">Add Budget</div>
 
           <div className="field"><label>Student</label>
-            {users.length === 0
-              ? <p style={{color:'#e11d48',fontSize:'13px'}}>⚠ No users found. Add a user first on the Users page.</p>
-              : <select value={userID} onChange={e => setUserID(e.target.value)}>
-                  {users.map(u => (
-                    <option key={u.userID} value={u.userID}>{u.username}</option>
-                  ))}
-                </select>
-            }</div>
+            <input type="text" value={currentUser.username} disabled /></div>
 
           <div className="field"><label>Category</label>
             <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
@@ -140,15 +146,16 @@ function Budgets({ users = [] }) {
 
           <button className="btn" onClick={addBudget} disabled={users.length === 0}>Add Budget</button>
         </div>
+        )}
 
         {/* ── TABLE ── */}
-        <div className="card">
+        <div className={`card ${isAdmin ? 'admin-only-full' : ''}`}>
           <div className="card-title">All Budgets</div>
-          <div className="table-top"><span className="badge-count">{budgets.length} records</span></div>
+          <div className="table-top"><span className="badge-count">{visibleBudgets.length} records</span></div>
           <table>
             <thead><tr><th>ID</th><th>Student</th><th>Category</th><th>Amount</th><th>Month/Year</th><th>Actions</th></tr></thead>
             <tbody>
-              {budgets.map(b => (
+              {visibleBudgets.map(b => (
                 <tr key={b.budgetID}>
                   <td className="id-cell">#{b.budgetID}</td>
                   <td><strong>{getName(b.userID)}</strong></td>

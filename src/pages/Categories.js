@@ -10,7 +10,7 @@ const INITIAL_CATS = [
   { categoryID: 6, categoryName: 'Data',          description: 'Mobile data and internet' },
 ];
 
-function Categories() {
+function Categories({ currentUser = {} }) {
   const [categories, setCategories] = useState(INITIAL_CATS);
   const [nextID, setNextID]         = useState(7);
 
@@ -27,6 +27,33 @@ function Categories() {
   const [delID, setDelID]           = useState(null);
 
   const [alert, setAlert]           = useState({ show: false, msg: '', type: '' });
+
+  const isAdmin = currentUser.role === 'admin';
+
+  const visibleCategories = (() => {
+    if (isAdmin) {
+      return categories;
+    }
+
+    let relatedCategoryIDs = new Set();
+
+    try {
+      const expenses = JSON.parse(localStorage.getItem('ss_expenses') || '[]');
+      const budgets = JSON.parse(localStorage.getItem('ss_budgets') || '[]');
+
+      expenses
+        .filter(expense => expense.userID === currentUser.userID)
+        .forEach(expense => relatedCategoryIDs.add(expense.categoryID));
+
+      budgets
+        .filter(budget => budget.userID === currentUser.userID)
+        .forEach(budget => relatedCategoryIDs.add(budget.categoryID));
+    } catch {
+      relatedCategoryIDs = new Set();
+    }
+
+    return categories.filter(category => relatedCategoryIDs.has(category.categoryID));
+  })();
 
   const showAlert = (msg, type = 'alert-success') => {
     setAlert({ show: true, msg, type });
@@ -76,6 +103,7 @@ function Categories() {
 
       <div className="layout">
         {/* INSERT FORM */}
+        {!isAdmin && (
         <div className="card">
           <div className="card-title">Add New Category</div>
           <div className="field"><label>Category Name *</label>
@@ -84,15 +112,16 @@ function Categories() {
             <input type="text" placeholder="Brief description..." value={newDesc} onChange={e => setNewDesc(e.target.value)} /></div>
           <button className="btn" onClick={addCategory}>Add Category</button>
         </div>
+        )}
 
         {/* LIST TABLE */}
-        <div className="card">
+        <div className={`card ${isAdmin ? 'admin-only-full' : ''}`}>
           <div className="card-title">All Categories</div>
-          <div className="table-top"><span className="badge-count">{categories.length} records</span></div>
+          <div className="table-top"><span className="badge-count">{visibleCategories.length} records</span></div>
           <table>
             <thead><tr><th>ID</th><th>Category</th><th>Description</th><th>Actions</th></tr></thead>
             <tbody>
-              {categories.map(c => (
+              {visibleCategories.map(c => (
                 <tr key={c.categoryID}>
                   <td className="id-cell">#{c.categoryID}</td>
                   <td><strong>{c.categoryName}</strong></td>

@@ -1,261 +1,391 @@
-import React, { useState } from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  NavLink,
-  Navigate
-} from 'react-router-dom';
-
-import { AuthProvider, useAuth } from './context/AuthContext';
-import ProtectedRoute from './context/ProtectedRoute';
-
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import './App.css';
-
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Users from './pages/Users';
-import Expenses from './pages/Expenses';
+import Users      from './pages/Users';
+import Expenses   from './pages/Expenses';
 import Categories from './pages/Categories';
-import Budgets from './pages/Budgets';
-import Reports from './pages/Reports';
+import Budgets    from './pages/Budgets';
+import Reports    from './pages/Reports';
+import { SESSION_KEY, hashPassword } from './auth';
 
-function Nav() {
-  const { user, logout } = useAuth();
+// ── Default users (only used on very first run ever) ──────────────────────
+const INITIAL_USERS = [
+  { userID: 1, username: 'kevin_jones',    email: 'kevin@student.ac.za',    role: 'student', passwordHash: '3bfdee9d9864b02016172ac134d97c5fcbd28866991a1e4a950ac6edf064f10d' },
+  { userID: 2, username: 'jonathan_smith', email: 'jonathan@student.ac.za', role: 'student', passwordHash: '82eb7cacb7f23d491c42ba76e2864c88260e3b14cc6b896bf1a8273906ab1eec' },
+  { userID: 3, username: 'amina_kristen',  email: 'amina@student.ac.za',    role: 'student', passwordHash: '96bd3eb0ab4c7a704fbb87507b93750f8ec731c3d687a97531f88b5f8bd078c5' },
+  { userID: 4, username: 'lelo_mathosa',   email: 'lelo@student.ac.za',     role: 'student', passwordHash: '7b9c312cf8fa30876cef466116ab3d6c35be0f09d3e876ad417d67a81812e5ec' },
+  { userID: 5, username: 'thabo_nkosi',    email: 'thabo@student.ac.za',    role: 'student', passwordHash: '80fd770840db42db4ac37b03af43e9af59b0c5fe89489bcf954b24e5dadca113' },
+  { userID: 6, username: 'admin_user',     email: 'admin@spendsmart.com',   role: 'admin',   passwordHash: '4a647de78d0d1b741fd179453801bf1b1fa9909a4f0bef0a7c64c946870a0526' },
+];
 
-  if (!user) return null;
+function readSessionUser() {
+  try {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
 
-  const isAdmin = user.role === 'admin';
+function LoginPage({ users, onLogin, onBackfillPasswordHash }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submitLogin = async event => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = users.find(candidate => candidate.email.toLowerCase() === normalizedEmail);
+
+      if (!user) {
+        setError('No account matches that email address.');
+        return;
+      }
+
+      const submittedHash = await hashPassword(password);
+      let expectedHash = user.passwordHash;
+
+      if (!expectedHash) {
+        expectedHash = await hashPassword(user.username);
+        onBackfillPasswordHash(user.userID, expectedHash);
+      }
+
+      if (submittedHash !== expectedHash) {
+        setError('Incorrect password.');
+        return;
+      }
+
+      onLogin({
+        userID: user.userID,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      });
+    } catch {
+      setError('Unable to verify credentials in this browser.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <header>
-      <div className="logo">
-        Spend<span>Smart</span>
-      </div>
+    <main className="auth-shell">
+      <section className="auth-card">
+        <div className="auth-badge">Secure access</div>
+        <h1>Sign in to SpendSmart</h1>
+        <p>Use your registered email and password to open the dashboard. Seeded demo accounts use their username as the password.</p>
 
-      <nav className="nav">
-        {!isAdmin && (
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => (isActive ? 'active' : '')}
-          >
-            Dashboard
-          </NavLink>
-        )}
+        <form className="auth-form" onSubmit={submitLogin}>
+          <div className="field">
+            <label>Email Address</label>
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="admin@spendsmart.com"
+              value={email}
+              onChange={event => setEmail(event.target.value)}
+            />
+          </div>
 
-        {isAdmin && (
-          <NavLink
-            to="/users"
-            className={({ isActive }) => (isActive ? 'active' : '')}
-          >
-            Users
-          </NavLink>
-        )}
+          <div className="field">
+            <label>Password</label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="Your account password"
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+            />
+          </div>
 
-        <NavLink
-          to="/expenses"
-          className={({ isActive }) => (isActive ? 'active' : '')}
-        >
-          Expenses
-        </NavLink>
+          {error && <div className="auth-error">{error}</div>}
 
-        {isAdmin && (
-          <NavLink
-            to="/categories"
-            className={({ isActive }) => (isActive ? 'active' : '')}
-          >
-            Categories
-          </NavLink>
-        )}
+          <button className="btn" type="submit" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign In'}
+          </button>
+        </form>
 
-        <NavLink
-          to="/budgets"
-          className={({ isActive }) => (isActive ? 'active' : '')}
-        >
-          Budgets
-        </NavLink>
-
-        <NavLink
-          to="/reports"
-          className={({ isActive }) => (isActive ? 'active' : '')}
-        >
-          Reports
-        </NavLink>
-      </nav>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
-          {user.username}
-
-          <span
-            style={{
-              marginLeft: '6px',
-              background:
-                user.role === 'admin'
-                  ? '#fef3e2'
-                  : 'var(--purple-light)',
-              color:
-                user.role === 'admin'
-                  ? '#b45309'
-                  : 'var(--purple)',
-              padding: '2px 8px',
-              borderRadius: '20px',
-              fontSize: '0.68rem',
-              fontWeight: 600
-            }}
-          >
-            {user.role}
-          </span>
-        </span>
-
-        <button
-          onClick={logout}
-          style={{
-            background: 'none',
-            border: '1.5px solid var(--border)',
-            borderRadius: '8px',
-            padding: '6px 14px',
-            fontSize: '0.78rem',
-            color: 'var(--muted)',
-            cursor: 'pointer',
-            fontFamily: 'var(--sans)',
-            transition: 'all 0.2s'
-          }}
-        >
-          Logout
-        </button>
-      </div>
-    </header>
+        <p className="auth-note">Admin users can manage accounts. Other pages stay locked until you sign in.</p>
+      </section>
+    </main>
   );
 }
 
-function AppRoutes({
-  users,
-  setUsers,
-  nextUserID,
-  setNextUserID
-}) {
-  const { user } = useAuth();
+function SignUpPage({ users, onCreateAccount }) {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submitSignUp = async event => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+
+    try {
+      const cleanUsername = username.trim();
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (!cleanUsername || !cleanEmail || !password.trim()) {
+        setError('All fields are required.');
+        return;
+      }
+
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+
+      if (users.some(user => user.email.toLowerCase() === cleanEmail)) {
+        setError('That email is already registered.');
+        return;
+      }
+
+      const passwordHash = await hashPassword(password);
+      onCreateAccount({
+        username: cleanUsername,
+        email: cleanEmail,
+        passwordHash,
+      });
+    } catch {
+      setError('Unable to create your account in this browser.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <>
-      <Nav />
+    <main className="auth-shell">
+      <section className="auth-card auth-card-wide">
+        <div className="auth-badge">Create account</div>
+        <h1>Sign up for SpendSmart</h1>
+        <p>Create a student account to track your own expenses, budgets, categories, and reports.</p>
 
-      <Routes>
-        <Route
-          path="/login"
-          element={
-            user ? (
-              <Navigate
-                to={user.role === 'admin' ? '/users' : '/dashboard'}
-              />
-            ) : (
-              <Login />
-            )
-          }
-        />
-
-        <Route
-          path="/register"
-          element={user ? <Navigate to="/dashboard" /> : <Register />}
-        />
-
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/users"
-          element={
-            <ProtectedRoute adminOnly>
-              <Users
-                users={users}
-                setUsers={setUsers}
-                nextUserID={nextUserID}
-                setNextUserID={setNextUserID}
-              />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/expenses"
-          element={
-            <ProtectedRoute>
-              <Expenses />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/categories"
-          element={
-            <ProtectedRoute adminOnly>
-              <Categories />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/budgets"
-          element={
-            <ProtectedRoute>
-              <Budgets />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <Reports />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to={
-                user
-                  ? user.role === 'admin'
-                    ? '/users'
-                    : '/dashboard'
-                  : '/login'
-              }
+        <form className="auth-form" onSubmit={submitSignUp}>
+          <div className="field">
+            <label>Username</label>
+            <input
+              type="text"
+              autoComplete="username"
+              placeholder="e.g. boipelo_m"
+              value={username}
+              onChange={event => setUsername(event.target.value)}
             />
-          }
-        />
+          </div>
 
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </>
+          <div className="field">
+            <label>Email Address</label>
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="student@ac.za"
+              value={email}
+              onChange={event => setEmail(event.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label>Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              placeholder="Min. 6 characters"
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+            />
+          </div>
+
+          {error && <div className="auth-error">{error}</div>}
+
+          <button className="btn" type="submit" disabled={busy}>
+            {busy ? 'Creating…' : 'Create Account'}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function LandingPage() {
+  return (
+    <main className="landing-shell">
+      <section className="landing-hero">
+        <div className="auth-badge">SpendSmart</div>
+        <h1>Track student spending with clarity.</h1>
+        <p>
+          Sign in to manage your own records, or create a student account and start logging expenses, budgets,
+          and reports from one place.
+        </p>
+
+        <div className="landing-actions">
+          <NavLink className="landing-btn landing-btn-primary" to="/login">Sign In</NavLink>
+          <NavLink className="landing-btn landing-btn-secondary" to="/signup">Sign Up</NavLink>
+        </div>
+      </section>
+    </main>
   );
 }
 
 function App() {
-  const [users, setUsers] = useState([]);
-  const [nextUserID, setNextUserID] = useState(1);
+  // ── Single shared users list — lives here in App, passed to all pages ──
+  const [users, setUsers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ss_users');
+      return saved ? JSON.parse(saved) : INITIAL_USERS;
+    } catch { return INITIAL_USERS; }
+  });
+
+  const [currentUser, setCurrentUser] = useState(() => readSessionUser());
+
+  const [nextUserID, setNextUserID] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ss_users_nid');
+      return saved ? parseInt(saved) : 7;
+    } catch { return 7; }
+  });
+
+  // Save to localStorage whenever users change
+  useEffect(() => {
+    localStorage.setItem('ss_users', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('ss_users_nid', String(nextUserID));
+  }, [nextUserID]);
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    } catch {
+      // Ignore storage failures and keep the app usable.
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const migrateUsers = async () => {
+      const needsMigration = users.some(user => !user.passwordHash);
+      if (!needsMigration) {
+        return;
+      }
+
+      const migrated = await Promise.all(users.map(async user => {
+        if (user.passwordHash) {
+          return user;
+        }
+
+        return {
+          ...user,
+          passwordHash: await hashPassword(user.username),
+        };
+      }));
+
+      if (!cancelled) {
+        setUsers(migrated);
+      }
+    };
+
+    migrateUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [users]);
+
+  const handleLogin = user => {
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+  };
+
+  const handleBackfillPasswordHash = (userID, passwordHash) => {
+    setUsers(prevUsers => prevUsers.map(user =>
+      user.userID === userID ? { ...user, passwordHash } : user
+    ));
+  };
+
+  const handleCreateAccount = ({ username, email, passwordHash }) => {
+    const newUser = {
+      userID: nextUserID,
+      username,
+      email,
+      role: 'student',
+      passwordHash,
+    };
+
+    setUsers(prevUsers => [newUser, ...prevUsers]);
+    setNextUserID(prev => prev + 1);
+    setCurrentUser({
+      userID: newUser.userID,
+      username: newUser.username,
+      email: newUser.email,
+      role: newUser.role,
+    });
+  };
+
+  const RequireAuth = ({ children, adminOnly = false }) => {
+    if (!currentUser) {
+      return <Navigate to="/" replace />;
+    }
+
+    if (adminOnly && currentUser.role !== 'admin') {
+      return <Navigate to="/reports" replace />;
+    }
+
+    return children;
+  };
 
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes
-          users={users}
-          setUsers={setUsers}
-          nextUserID={nextUserID}
-          setNextUserID={setNextUserID}
-        />
-      </Router>
-    </AuthProvider>
+    <Router>
+      {currentUser && (
+        <header>
+          <div className="logo">Spend<span>Smart</span></div>
+          <div className="header-actions">
+            <nav className="nav">
+              {currentUser.role === 'admin' && (
+                <NavLink to="/users" className={({ isActive }) => isActive ? 'active' : ''}>Users</NavLink>
+              )}
+              <NavLink to="/expenses"   className={({ isActive }) => isActive ? 'active' : ''}>Expenses</NavLink>
+              <NavLink to="/categories" className={({ isActive }) => isActive ? 'active' : ''}>Categories</NavLink>
+              <NavLink to="/budgets"    className={({ isActive }) => isActive ? 'active' : ''}>Budgets</NavLink>
+              <NavLink to="/reports"    className={({ isActive }) => isActive ? 'active' : ''}>Reports</NavLink>
+            </nav>
+            <div className="user-chip">
+              <span>{currentUser.username}</span>
+              <button type="button" className="logout-btn" onClick={handleLogout}>Log out</button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <Routes>
+        <Route path="/" element={currentUser ? <Navigate to="/reports" replace /> : <LandingPage />} />
+        <Route path="/login" element={currentUser ? <Navigate to="/reports" replace /> : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
+        <Route path="/signup" element={currentUser ? <Navigate to="/reports" replace /> : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
+        <Route path="/users" element={
+          <RequireAuth adminOnly>
+            <Users users={users} setUsers={setUsers} nextUserID={nextUserID} setNextUserID={setNextUserID} />
+          </RequireAuth>
+        }/>
+        <Route path="/expenses"   element={<RequireAuth><Expenses   users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/categories" element={<RequireAuth><Categories currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/budgets"    element={<RequireAuth><Budgets    users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/reports"    element={<RequireAuth><Reports    users={users} currentUser={currentUser} /></RequireAuth>} />
+      </Routes>
+    </Router>
   );
 }
 
