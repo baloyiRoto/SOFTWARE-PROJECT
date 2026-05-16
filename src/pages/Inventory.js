@@ -3,6 +3,22 @@ import '../App.css';
 
 const LOCATIONS = { 1: 'Fridge', 2: 'Cupboard', 3: 'Pantry', 4: 'Freezer' };
 const CATEGORIES = { 1: 'Vegetables', 2: 'Fruits', 3: 'Dairy', 4: 'Meat', 5: 'Grains', 6: 'Condiments', 7: 'Beverages', 8: 'Other' };
+const UNITS = ['kg', 'g', 'liters', 'ml', 'pieces', 'cups', 'tablespoons', 'teaspoons', 'loaves', 'packs', 'cans', 'bottles', 'boxes'];
+const QUANTITY_OPTIONS = {
+  'kg': [0.1, 0.5, 1, 2, 5, 10],
+  'g': [10, 50, 100, 250, 500, 1000],
+  'liters': [0.1, 0.5, 1, 2, 5],
+  'ml': [10, 50, 100, 250, 500, 1000],
+  'pieces': [1, 2, 3, 4, 5, 6, 12, 24],
+  'cups': [0.25, 0.5, 1, 2, 4],
+  'tablespoons': [0.5, 1, 2, 4, 8],
+  'teaspoons': [0.5, 1, 2, 4, 8],
+  'loaves': [1, 2],
+  'packs': [1, 2, 3, 5, 10],
+  'cans': [1, 2, 3, 6],
+  'bottles': [1, 2, 6, 12],
+  'boxes': [1, 2, 5, 10]
+};
 
 const INITIAL_INVENTORY = [
   { itemID: 1, userID: 1, name: 'Milk', locationID: 1, categoryID: 3, quantity: 2, unit: 'liters', expiryDate: '2026-05-20' },
@@ -28,9 +44,11 @@ function Inventory({ users = [], currentUser = {} }) {
   const [name, setName] = useState('');
   const [locationID, setLocationID] = useState('1');
   const [categoryID, setCategoryID] = useState('1');
-  const [quantity, setQuantity] = useState('');
-  const [unit, setUnit] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [unit, setUnit] = useState('pieces');
   const [expiryDate, setExpiryDate] = useState('');
+
+  const getQuantityOptions = (selectedUnit) => QUANTITY_OPTIONS[selectedUnit] || [1, 2, 3, 4, 5];
   const [editOpen, setEditOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [delOpen, setDelOpen] = useState(false);
@@ -48,7 +66,7 @@ function Inventory({ users = [], currentUser = {} }) {
   };
 
   const addItem = () => {
-    if (!name.trim() || !quantity || !unit.trim()) {
+    if (!name.trim() || !quantity || !unit) {
       showAlert('Name, quantity, and unit are required.', 'alert-error');
       return;
     }
@@ -63,12 +81,12 @@ function Inventory({ users = [], currentUser = {} }) {
       locationID: parseInt(locationID),
       categoryID: parseInt(categoryID),
       quantity: parseFloat(quantity),
-      unit: unit.trim(),
+      unit: unit,
       expiryDate: expiryDate || null
     };
     setInventory(prev => [newItem, ...prev]);
     setNextID(prev => prev + 1);
-    setName(''); setQuantity(''); setUnit(''); setExpiryDate('');
+    setName(''); setQuantity('1'); setUnit('pieces'); setExpiryDate('');
     showAlert('Item added to inventory!');
   };
 
@@ -133,11 +151,13 @@ function Inventory({ users = [], currentUser = {} }) {
 
           <div className="row2">
             <div className="field"><label>Quantity</label>
-              <input type="number" placeholder="0" min="0" step="0.1"
-                value={quantity} onChange={e => setQuantity(e.target.value)} /></div>
+              <select value={quantity} onChange={e => setQuantity(e.target.value)}>
+                {getQuantityOptions(unit).map(q => <option key={q} value={q}>{q}</option>)}
+              </select></div>
             <div className="field"><label>Unit</label>
-              <input type="text" placeholder="e.g. kg, liters, pieces"
-                value={unit} onChange={e => setUnit(e.target.value)} /></div>
+              <select value={unit} onChange={e => setUnit(e.target.value)}>
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              </select></div>
           </div>
 
           <div className="field"><label>Expiry Date (optional)</label>
@@ -193,11 +213,15 @@ function Inventory({ users = [], currentUser = {} }) {
             </div>
             <div className="row2">
               <div className="field"><label>Quantity</label>
-                <input type="number" value={editItem.quantity}
-                  onChange={e => setEditItem({ ...editItem, quantity: parseFloat(e.target.value) })} /></div>
+                <select value={editItem.quantity}
+                  onChange={e => setEditItem({ ...editItem, quantity: parseFloat(e.target.value) })}>
+                  {getQuantityOptions(editItem.unit).map(q => <option key={q} value={q}>{q}</option>)}
+                </select></div>
               <div className="field"><label>Unit</label>
-                <input type="text" value={editItem.unit}
-                  onChange={e => setEditItem({ ...editItem, unit: e.target.value })} /></div>
+                <select value={editItem.unit}
+                  onChange={e => setEditItem({ ...editItem, unit: e.target.value })}>
+                  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select></div>
             </div>
             <div className="field"><label>Expiry Date</label>
               <input type="date" value={editItem.expiryDate || ''}

@@ -106,13 +106,13 @@ function Budgets({ users = [], currentUser = {} }) {
       </div>
       {alert.show && <div className={`alert show ${alert.type}`}>{alert.msg}</div>}
 
-      <div className="stats" style={{ gridTemplateColumns:'repeat(3,1fr)', marginBottom:28 }}>
+      <div className="stats" style={{ gridTemplateColumns: isAdmin ? 'repeat(3,1fr)' : 'repeat(2,1fr)', marginBottom:28 }}>
         <div className="stat"><div className="stat-label">Total Budgeted</div>
           <div className="stat-value"><span>R</span>{total.toLocaleString()}</div></div>
         <div className="stat"><div className="stat-label">Budget Records</div>
           <div className="stat-value">{visibleBudgets.length}</div></div>
-        <div className="stat"><div className="stat-label">Students in System</div>
-          <div className="stat-value">{studentCount}</div></div>
+        {isAdmin && <div className="stat"><div className="stat-label">Students in System</div>
+          <div className="stat-value">{studentCount}</div></div>}
       </div>
 
       <div className="layout">
@@ -153,12 +153,12 @@ function Budgets({ users = [], currentUser = {} }) {
           <div className="card-title">All Budgets</div>
           <div className="table-top"><span className="badge-count">{visibleBudgets.length} records</span></div>
           <table>
-            <thead><tr><th>ID</th><th>Student</th><th>Category</th><th>Amount</th><th>Month/Year</th><th>Actions</th></tr></thead>
+            <thead><tr><th>ID</th>{isAdmin && <th>Student</th>}<th>Category</th><th>Amount</th><th>Month/Year</th><th>Actions</th></tr></thead>
             <tbody>
               {visibleBudgets.map(b => (
                 <tr key={b.budgetID}>
                   <td className="id-cell">#{b.budgetID}</td>
-                  <td><strong>{getName(b.userID)}</strong></td>
+                  {isAdmin && <td><strong>{getName(b.userID)}</strong></td>}
                   <td><span className="cat-pill">{CATS[b.categoryID]}</span></td>
                   <td className="amount-cell">R {parseFloat(b.amount).toFixed(2)}</td>
                   <td>{MONTHS[b.month-1]} {b.year}</td>

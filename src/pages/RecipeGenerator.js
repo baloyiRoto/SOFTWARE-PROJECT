@@ -20,6 +20,10 @@ function RecipeGenerator({ users = [], currentUser = {} }) {
   const [loading, setLoading] = useState(false);
   const [generatedRecipe, setGeneratedRecipe] = useState(null);
   const [alert, setAlert] = useState({ show: false, msg: '', type: '' });
+  const [savedRecipesOpen, setSavedRecipesOpen] = useState(false);
+  const [ingredientSearch, setIngredientSearch] = useState('');
+  const [expandedLocations, setExpandedLocations] = useState({});
+  const [expandedRecipeId, setExpandedRecipeId] = useState(null);
 
   const isAdmin = currentUser.role === 'admin';
   const visibleInventory = isAdmin
@@ -124,6 +128,15 @@ Format your response as JSON with these fields:
   const saveRecipe = () => {
     if (!generatedRecipe) return;
     
+    const isDuplicate = userRecipes.some(recipe => 
+      recipe.title.toLowerCase() === generatedRecipe.title.toLowerCase()
+    );
+    
+    if (isDuplicate) {
+      showAlert('This recipe already exists in your saved recipes!', 'alert-error');
+      return;
+    }
+    
     const newRecipe = {
       recipeID: Date.now(),
       userID: currentUser.userID,
@@ -135,6 +148,44 @@ Format your response as JSON with these fields:
     setRecipes(prev => [newRecipe, ...prev]);
     localStorage.setItem('mm_recipes', JSON.stringify([newRecipe, ...recipes]));
     showAlert('Recipe saved!');
+  };
+
+  const deleteRecipe = (recipeID) => {
+    setRecipes(prev => prev.filter(recipe => recipe.recipeID !== recipeID));
+    localStorage.setItem('mm_recipes', JSON.stringify(recipes.filter(recipe => recipe.recipeID !== recipeID)));
+    showAlert('Recipe removed!');
+  };
+
+  const viewRecipe = (recipe) => {
+    setExpandedRecipeId(recipe.recipeID);
+  };
+
+  const closeRecipeView = () => {
+    setExpandedRecipeId(null);
+  };
+
+  const userRecipes = recipes.filter(recipe => recipe.userID === currentUser.userID);
+
+  const LOCATIONS = { 1: 'Fridge', 2: 'Cupboard', 3: 'Pantry', 4: 'Freezer' };
+
+  const filteredInventory = visibleInventory.filter(item => 
+    item.name.toLowerCase().includes(ingredientSearch.toLowerCase())
+  );
+
+  const groupedInventory = filteredInventory.reduce((groups, item) => {
+    const location = LOCATIONS[item.locationID];
+    if (!groups[location]) {
+      groups[location] = [];
+    }
+    groups[location].push(item);
+    return groups;
+  }, {});
+
+  const toggleLocationExpansion = (location) => {
+    setExpandedLocations(prev => ({
+      ...prev,
+      [location]: !prev[location]
+    }));
   };
 
   return (
@@ -157,23 +208,71 @@ Format your response as JSON with these fields:
               <button className="btn-small" onClick={clearSelection}>Clear</button>
             </div>
           </div>
+
+          <div className="field" style={{ marginTop: '16px' }}>
+            <input
+              type="text"
+              placeholder="Search ingredients..."
+              value={ingredientSearch}
+              onChange={e => setIngredientSearch(e.target.value)}
+              style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px' }}
+            />
+          </div>
           
           {visibleInventory.length === 0 ? (
             <p style={{ padding: '20px', color: 'var(--muted)' }}>No items in inventory. Add items first.</p>
           ) : (
-            <div className="ingredient-grid">
-              {visibleInventory.map(item => (
-                <div
-                  key={item.itemID}
-                  className={`ingredient-card ${selectedIngredients.includes(item.itemID) ? 'selected' : ''}`}
-                  onClick={() => toggleIngredient(item.itemID)}
-                >
-                  <div className="ingredient-name">{item.name}</div>
-                  <div className="ingredient-qty">{item.quantity} {item.unit}</div>
-                  <div className="ingredient-loc">{item.locationID === 1 ? '🧊' : item.locationID === 2 ? '🗄️' : item.locationID === 3 ? '📦' : '❄️'}</div>
+            Object.entries(groupedInventory).map(([location, items]) => {
+              const isExpanded = expandedLocations[location] || false;
+              const visibleItems = isExpanded ? items : items.slice(0, 2);
+              const hasMore = items.length > 2;
+              
+              return (
+                <div key={location} style={{ marginTop: '20px' }}>
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      cursor: 'pointer',
+                      marginBottom: '12px'
+                    }}
+                    onClick={() => hasMore && toggleLocationExpansion(location)}
+                  >
+                    <h4 style={{ fontSize: '0.9rem', color: 'var(--purple-dark)', fontWeight: 600, margin: 0 }}>
+                      {location} ({items.length})
+                    </h4>
+                    {hasMore && (
+                      <span style={{ fontSize: '1rem', color: 'var(--purple)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                        ▼
+                      </span>
+                    )}
+                  </div>
+                  <div className="ingredient-grid">
+                    {visibleItems.map(item => (
+                      <div
+                        key={item.itemID}
+                        className={`ingredient-card ${selectedIngredients.includes(item.itemID) ? 'selected' : ''}`}
+                        onClick={() => toggleIngredient(item.itemID)}
+                      >
+                        <div className="ingredient-name">{item.name}</div>
+                        <div className="ingredient-qty">{item.quantity} {item.unit}</div>
+                        <div className="ingredient-loc">{item.locationID === 1 ? '🧊' : item.locationID === 2 ? '🗄️' : item.locationID === 3 ? '📦' : '❄️'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {hasMore && !isExpanded && (
+                    <button 
+                      className="btn-small" 
+                      onClick={() => toggleLocationExpansion(location)}
+                      style={{ marginTop: '8px', width: '100%' }}
+                    >
+                      Show {items.length - 2} more
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
 
           <div className="row2" style={{ marginTop: '20px' }}>
@@ -209,52 +308,167 @@ Format your response as JSON with these fields:
         </div>
 
         {/* ── GENERATED RECIPE ── */}
-        {generatedRecipe && (
-          <div className="card recipe-card">
-            <div className="card-title">Generated Recipe</div>
-            <h2>{generatedRecipe.title}</h2>
-            <p className="recipe-description">{generatedRecipe.description}</p>
-            
-            <div className="recipe-meta">
-              <span>⏱️ Prep: {generatedRecipe.prepTime}</span>
-              <span>🍳 Cook: {generatedRecipe.cookTime}</span>
-              <span>👥 Serves: {generatedRecipe.servings}</span>
-            </div>
+        <div className="card recipe-card">
+          <div className="card-title">Generated Recipe</div>
+          {generatedRecipe ? (
+            <>
+              <h2>{generatedRecipe.title}</h2>
+              <p className="recipe-description">{generatedRecipe.description}</p>
+              
+              <div className="recipe-meta">
+                <span>⏱️ Prep: {generatedRecipe.prepTime}</span>
+                <span>🍳 Cook: {generatedRecipe.cookTime}</span>
+                <span>👥 Serves: {generatedRecipe.servings}</span>
+              </div>
 
-            <div className="recipe-section">
-              <h3>Ingredients</h3>
-              <ul>
-                {generatedRecipe.ingredients.map((ing, idx) => (
-                  <li key={idx}>{ing}</li>
-                ))}
-              </ul>
-            </div>
-
-            {generatedRecipe.additionalNeeded && generatedRecipe.additionalNeeded.length > 0 && (
-              <div className="recipe-section additional">
-                <h3>🛒 You'll also need</h3>
+              <div className="recipe-section">
+                <h3>Ingredients</h3>
                 <ul>
-                  {generatedRecipe.additionalNeeded.map((ing, idx) => (
+                  {generatedRecipe.ingredients.map((ing, idx) => (
                     <li key={idx}>{ing}</li>
                   ))}
                 </ul>
               </div>
-            )}
 
-            <div className="recipe-section">
-              <h3>Instructions</h3>
-              <ol>
-                {generatedRecipe.instructions.map((step, idx) => (
-                  <li key={idx}>{step}</li>
-                ))}
-              </ol>
+              {generatedRecipe.additionalNeeded && generatedRecipe.additionalNeeded.length > 0 && (
+                <div className="recipe-section additional">
+                  <h3>🛒 You'll also need</h3>
+                  <ul>
+                    {generatedRecipe.additionalNeeded.map((ing, idx) => (
+                      <li key={idx}>{ing}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="recipe-section">
+                <h3>Instructions</h3>
+                <ol>
+                  {generatedRecipe.instructions.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+
+              <button className="btn" onClick={saveRecipe} style={{ marginTop: '20px' }}>
+                💾 Save Recipe
+              </button>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🧑‍🍳</div>
+              <p style={{ fontSize: '1rem', marginBottom: '8px' }}>No recipe generated yet</p>
+              <p style={{ fontSize: '0.88rem' }}>Select ingredients and click "Generate Recipe" to get started</p>
             </div>
+          )}
+        </div>
 
-            <button className="btn" onClick={saveRecipe} style={{ marginTop: '20px' }}>
-              💾 Save Recipe
-            </button>
+        {/* ── SAVED RECIPES ── */}
+        <div className="card saved-recipes-card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setSavedRecipesOpen(!savedRecipesOpen)}>
+            <span>Saved Recipes ({userRecipes.length})</span>
+            <span style={{ fontSize: '1.2rem', transition: 'transform 0.2s', transform: savedRecipesOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-        )}
+          {savedRecipesOpen && (
+            <div style={{ marginTop: '20px' }}>
+              {userRecipes.length === 0 ? (
+                <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px' }}>No saved recipes yet. Generate and save your first recipe!</p>
+              ) : (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                  {userRecipes.map(recipe => (
+                    <div key={recipe.recipeID} style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', background: 'var(--bg)' }}>
+                      {expandedRecipeId === recipe.recipeID ? (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: 600, color: 'var(--purple-dark)', margin: 0 }}>{recipe.title}</h2>
+                            <button 
+                              className="btn-small" 
+                              onClick={closeRecipeView}
+                              style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                            >
+                              ✕ Close
+                            </button>
+                          </div>
+                          <p className="recipe-description" style={{ marginBottom: '16px' }}>{recipe.description}</p>
+                          
+                          <div className="recipe-meta" style={{ marginBottom: '16px' }}>
+                            <span>⏱️ Prep: {recipe.prepTime}</span>
+                            <span>🍳 Cook: {recipe.cookTime}</span>
+                            <span>👥 Serves: {recipe.servings}</span>
+                          </div>
+
+                          <div className="recipe-section" style={{ marginBottom: '16px' }}>
+                            <h3>Ingredients</h3>
+                            <ul>
+                              {recipe.ingredients.map((ing, idx) => (
+                                <li key={idx}>{ing}</li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {recipe.additionalNeeded && recipe.additionalNeeded.length > 0 && (
+                            <div className="recipe-section additional" style={{ marginBottom: '16px' }}>
+                              <h3>🛒 You'll also need</h3>
+                              <ul>
+                                {recipe.additionalNeeded.map((ing, idx) => (
+                                  <li key={idx}>{ing}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="recipe-section">
+                            <h3>Instructions</h3>
+                            <ol>
+                              {recipe.instructions.map((step, idx) => (
+                                <li key={idx}>{step}</li>
+                              ))}
+                            </ol>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+                            <button 
+                              className="btn-small" 
+                              onClick={() => deleteRecipe(recipe.recipeID)}
+                              style={{ background: 'var(--error-bg)', color: '#e11d48' }}
+                            >
+                              Remove Recipe
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem', fontWeight: 600, color: 'var(--purple-dark)', marginBottom: '8px' }}>{recipe.title}</h3>
+                          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginBottom: '12px' }}>{recipe.description}</p>
+                          <div style={{ display: 'flex', gap: '16px', fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '12px' }}>
+                            <span>⏱️ {recipe.prepTime}</span>
+                            <span>🍳 {recipe.cookTime}</span>
+                            <span>👥 {recipe.servings}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                            <button 
+                              className="btn-small" 
+                              onClick={() => viewRecipe(recipe)}
+                            >
+                              View Recipe
+                            </button>
+                            <button 
+                              className="btn-small" 
+                              onClick={() => deleteRecipe(recipe.recipeID)}
+                              style={{ background: 'var(--error-bg)', color: '#e11d48' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

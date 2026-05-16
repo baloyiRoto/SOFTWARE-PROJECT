@@ -245,7 +245,7 @@ function Reports({ users = [], currentUser = {} }) {
       </div>
 
       {/* ── STATS ── */}
-      <div className="stats">
+      <div className="stats" style={{ gridTemplateColumns: isAdmin ? 'repeat(6,1fr)' : 'repeat(5,1fr)' }}>
         <div className="stat">
           <div className="stat-label">Total Spent</div>
           <div className="stat-value"><span>R</span>{totalSpent.toLocaleString('en-ZA', { minimumFractionDigits:2 })}</div>
@@ -269,10 +269,10 @@ function Reports({ users = [], currentUser = {} }) {
           <div className="stat-label">Total Records</div>
           <div className="stat-value">{filtered.length}</div>
         </div>
-        <div className="stat">
+        {isAdmin && <div className="stat">
           <div className="stat-label">Students</div>
-          <div className="stat-value">{isAdmin ? users.length : 1}</div>
-        </div>
+          <div className="stat-value">{users.length}</div>
+        </div>}
       </div>
 
       {/* ── FILTERS ── */}
@@ -335,7 +335,7 @@ function Reports({ users = [], currentUser = {} }) {
 
         {/* Budget vs Actual per Student */}
         <div className="card">
-          <div className="card-title">Budget vs Actual — Per Student</div>
+          <div className="card-title">Budget vs Actual</div>
           {byStudent.length === 0
             ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data available.</p>
             : <table>
@@ -391,7 +391,7 @@ function Reports({ users = [], currentUser = {} }) {
           : <table>
               <thead>
                 <tr>
-                  <th>ID</th><th>Student</th><th>Category</th>
+                  <th>ID</th>{isAdmin && <th>Student</th>}<th>Category</th>
                   <th>Amount</th><th>Description</th><th>Date</th>
                 </tr>
               </thead>
@@ -399,7 +399,7 @@ function Reports({ users = [], currentUser = {} }) {
                 {filtered.map(e => (
                   <tr key={e.expenseID}>
                     <td className="id-cell">#{e.expenseID}</td>
-                    <td><strong>{getName(e.userID)}</strong></td>
+                    {isAdmin && <td><strong>{getName(e.userID)}</strong></td>}
                     <td><span className="cat-pill">{CATS[e.categoryID]}</span></td>
                     <td className="amount-cell">R {parseFloat(e.amount).toFixed(2)}</td>
                     <td style={{ fontSize:'0.82rem', color:'var(--muted)' }}>{e.description}</td>

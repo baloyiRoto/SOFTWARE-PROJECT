@@ -139,12 +139,12 @@ function Expenses({ users = [], currentUser = {} }) {
           <div className="card-title">All Expenses</div>
           <div className="table-top"><span className="badge-count">{visibleExpenses.length} records</span></div>
           <table>
-            <thead><tr><th>ID</th><th>Student</th><th>Category</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead>
+            <thead><tr><th>ID</th>{isAdmin && <th>Student</th>}<th>Category</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead>
             <tbody>
               {visibleExpenses.map(e => (
                 <tr key={e.expenseID}>
                   <td className="id-cell">#{e.expenseID}</td>
-                  <td><strong>{getName(e.userID)}</strong></td>
+                  {isAdmin && <td><strong>{getName(e.userID)}</strong></td>}
                   <td><span className="cat-pill">{CATS[e.categoryID]}</span></td>
                   <td className="amount-cell">R {parseFloat(e.amount).toFixed(2)}</td>
                   <td>{e.expenseDate}</td>

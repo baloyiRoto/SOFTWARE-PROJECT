@@ -57,6 +57,35 @@ function Header({ currentUser, onLogout }) {
   );
 }
 
+function Footer() {
+  return (
+    <footer>
+      <div className="footer-content">
+        <div className="footer-section">
+          <h3>StudentHub</h3>
+          <p>Your all-in-one student management platform for tracking expenses, budgets, and meal planning.</p>
+        </div>
+        <div className="footer-section">
+          <h3>Quick Links</h3>
+          <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer">Facebook</a>
+          <a href="https://www.twitter.com" target="_blank" rel="noopener noreferrer">Twitter</a>
+          <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer">Instagram</a>
+          <a href="https://www.linkedin.com" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        </div>
+        <div className="footer-section">
+          <h3>Resources</h3>
+          <a href="https://www.studentlife.co.za" target="_blank" rel="noopener noreferrer">Student Life SA</a>
+          <a href="https://www.nsfas.org.za" target="_blank" rel="noopener noreferrer">NSFAS</a>
+          <a href="https://www.careers24.com" target="_blank" rel="noopener noreferrer">Careers24</a>
+        </div>
+      </div>
+      <div className="footer-bottom">
+        <p>&copy; 2026 StudentHub. All rights reserved.</p>
+      </div>
+    </footer>
+  );
+}
+
 // ── Default users (only used on very first run ever) ──────────────────────
 const INITIAL_USERS = [
   { userID: 1, username: 'kevin_jones',    email: 'kevin@student.ac.za',    role: 'student', passwordHash: '3bfdee9d9864b02016172ac134d97c5fcbd28866991a1e4a950ac6edf064f10d' },
@@ -426,6 +455,8 @@ function App() {
         <Route path="/mealmate/recipes"    element={<RequireAuth><RecipeGenerator users={users} currentUser={currentUser} /></RequireAuth>} />
         <Route path="/mealmate/shopping"   element={<RequireAuth><ShoppingSuggestions users={users} currentUser={currentUser} /></RequireAuth>} />
       </Routes>
+
+      <Footer />
     </Router>
   );
 }
