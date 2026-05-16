@@ -1,12 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import Users      from './pages/Users';
 import Expenses   from './pages/Expenses';
 import Categories from './pages/Categories';
 import Budgets    from './pages/Budgets';
 import Reports    from './pages/Reports';
+import Inventory  from './pages/Inventory';
+import RecipeGenerator from './pages/RecipeGenerator';
+import ShoppingSuggestions from './pages/ShoppingSuggestions';
+import ModuleSelection from './pages/ModuleSelection';
 import { SESSION_KEY, hashPassword } from './auth';
+
+function Header({ currentUser, onLogout }) {
+  const location = useLocation();
+  const currentModule = location.pathname.startsWith('/spendsmart') ? 'spendsmart' :
+                       location.pathname.startsWith('/mealmate') ? 'mealmate' : null;
+
+  return (
+    <header>
+      <div className="logo">Student<span>Hub</span></div>
+      <div className="header-actions">
+        <nav className="nav">
+          {currentModule === 'spendsmart' ? (
+            <>
+              {currentUser.role === 'admin' && (
+                <NavLink to="/spendsmart/users" className={({ isActive }) => isActive ? 'active' : ''}>Users</NavLink>
+              )}
+              <NavLink to="/spendsmart/expenses"   className={({ isActive }) => isActive ? 'active' : ''}>Expenses</NavLink>
+              <NavLink to="/spendsmart/categories" className={({ isActive }) => isActive ? 'active' : ''}>Categories</NavLink>
+              <NavLink to="/spendsmart/budgets"    className={({ isActive }) => isActive ? 'active' : ''}>Budgets</NavLink>
+              <NavLink to="/spendsmart/reports"    className={({ isActive }) => isActive ? 'active' : ''}>Reports</NavLink>
+              <div className="module-switcher">
+                <span>Switch to:</span>
+                <NavLink to="/mealmate/inventory">MealMate</NavLink>
+              </div>
+            </>
+          ) : currentModule === 'mealmate' ? (
+            <>
+              <NavLink to="/mealmate/inventory"  className={({ isActive }) => isActive ? 'active' : ''}>Inventory</NavLink>
+              <NavLink to="/mealmate/recipes"    className={({ isActive }) => isActive ? 'active' : ''}>Recipes</NavLink>
+              <NavLink to="/mealmate/shopping"   className={({ isActive }) => isActive ? 'active' : ''}>Shopping</NavLink>
+              <div className="module-switcher">
+                <span>Switch to:</span>
+                <NavLink to="/spendsmart/reports">SpendSmart</NavLink>
+              </div>
+            </>
+          ) : null}
+        </nav>
+        <div className="user-chip">
+          <span>{currentUser.username}</span>
+          <button type="button" className="logout-btn" onClick={onLogout}>Log out</button>
+        </div>
+      </div>
+    </header>
+  );
+}
 
 // ── Default users (only used on very first run ever) ──────────────────────
 const INITIAL_USERS = [
@@ -250,6 +299,7 @@ function App() {
     } catch { return 7; }
   });
 
+
   // Save to localStorage whenever users change
   useEffect(() => {
     localStorage.setItem('ss_users', JSON.stringify(users));
@@ -350,40 +400,31 @@ function App() {
 
   return (
     <Router>
-      {currentUser && (
-        <header>
-          <div className="logo">Spend<span>Smart</span></div>
-          <div className="header-actions">
-            <nav className="nav">
-              {currentUser.role === 'admin' && (
-                <NavLink to="/users" className={({ isActive }) => isActive ? 'active' : ''}>Users</NavLink>
-              )}
-              <NavLink to="/expenses"   className={({ isActive }) => isActive ? 'active' : ''}>Expenses</NavLink>
-              <NavLink to="/categories" className={({ isActive }) => isActive ? 'active' : ''}>Categories</NavLink>
-              <NavLink to="/budgets"    className={({ isActive }) => isActive ? 'active' : ''}>Budgets</NavLink>
-              <NavLink to="/reports"    className={({ isActive }) => isActive ? 'active' : ''}>Reports</NavLink>
-            </nav>
-            <div className="user-chip">
-              <span>{currentUser.username}</span>
-              <button type="button" className="logout-btn" onClick={handleLogout}>Log out</button>
-            </div>
-          </div>
-        </header>
-      )}
+      {currentUser && <Header currentUser={currentUser} onLogout={handleLogout} />}
 
       <Routes>
-        <Route path="/" element={currentUser ? <Navigate to="/reports" replace /> : <LandingPage />} />
-        <Route path="/login" element={currentUser ? <Navigate to="/reports" replace /> : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
-        <Route path="/signup" element={currentUser ? <Navigate to="/reports" replace /> : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
-        <Route path="/users" element={
+        <Route path="/" element={currentUser ? <Navigate to="/modules" replace /> : <LandingPage />} />
+        <Route path="/login" element={currentUser ? <Navigate to="/modules" replace /> : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
+        <Route path="/signup" element={currentUser ? <Navigate to="/modules" replace /> : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
+        <Route path="/modules" element={<RequireAuth><ModuleSelection /></RequireAuth>} />
+        
+        {/* SpendSmart Module Routes */}
+        <Route path="/spendsmart" element={<RequireAuth><Navigate to="/spendsmart/reports" replace /></RequireAuth>} />
+        <Route path="/spendsmart/users" element={
           <RequireAuth adminOnly>
             <Users users={users} setUsers={setUsers} nextUserID={nextUserID} setNextUserID={setNextUserID} />
           </RequireAuth>
         }/>
-        <Route path="/expenses"   element={<RequireAuth><Expenses   users={users} currentUser={currentUser} /></RequireAuth>} />
-        <Route path="/categories" element={<RequireAuth><Categories currentUser={currentUser} /></RequireAuth>} />
-        <Route path="/budgets"    element={<RequireAuth><Budgets    users={users} currentUser={currentUser} /></RequireAuth>} />
-        <Route path="/reports"    element={<RequireAuth><Reports    users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/spendsmart/expenses"   element={<RequireAuth><Expenses   users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/spendsmart/categories" element={<RequireAuth><Categories currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/spendsmart/budgets"    element={<RequireAuth><Budgets    users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/spendsmart/reports"    element={<RequireAuth><Reports    users={users} currentUser={currentUser} /></RequireAuth>} />
+        
+        {/* MealMate Module Routes */}
+        <Route path="/mealmate" element={<RequireAuth><Navigate to="/mealmate/inventory" replace /></RequireAuth>} />
+        <Route path="/mealmate/inventory"  element={<RequireAuth><Inventory  users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/mealmate/recipes"    element={<RequireAuth><RecipeGenerator users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/mealmate/shopping"   element={<RequireAuth><ShoppingSuggestions users={users} currentUser={currentUser} /></RequireAuth>} />
       </Routes>
     </Router>
   );
