@@ -3,7 +3,14 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import '../App.css';
 
-const CATS = { 1:'Food', 2:'Transport', 3:'Rent', 4:'Stationery', 5:'Entertainment', 6:'Data' };
+const INITIAL_CATS = [
+  { categoryID: 1, categoryName: 'Food',          description: 'Groceries, takeaways and meals' },
+  { categoryID: 2, categoryName: 'Transport',     description: 'Taxi, bus and fuel costs' },
+  { categoryID: 3, categoryName: 'Rent',          description: 'Monthly accommodation payments' },
+  { categoryID: 4, categoryName: 'Stationery',    description: 'Books, pens and study materials' },
+  { categoryID: 5, categoryName: 'Entertainment', description: 'Streaming, outings and hobbies' },
+  { categoryID: 6, categoryName: 'Data',          description: 'Mobile data and internet' },
+];
 const CAT_COLORS = { 1:'#6c3fc5', 2:'#2196F3', 3:'#E91E63', 4:'#FF9800', 5:'#4CAF50', 6:'#00BCD4' };
 
 const INITIAL_EXPENSES = [
@@ -46,6 +53,16 @@ function Reports({ users = [], currentUser = {} }) {
     try { const s = localStorage.getItem('ss_expenses'); return s ? JSON.parse(s) : INITIAL_EXPENSES; }
     catch { return INITIAL_EXPENSES; }
   });
+
+  const [categories, setCategories] = useState(() => {
+    try { const s = localStorage.getItem('ss_categories'); return s ? JSON.parse(s) : INITIAL_CATS; }
+    catch { return INITIAL_CATS; }
+  });
+
+  const catMap = categories.reduce((acc, cat) => {
+    acc[cat.categoryID] = cat.categoryName;
+    return acc;
+  }, {});
 
   const [budgets, setBudgets] = useState(() => {
     try { const s = localStorage.getItem('ss_budgets'); return s ? JSON.parse(s) : INITIAL_BUDGETS; }
@@ -96,11 +113,11 @@ function Reports({ users = [], currentUser = {} }) {
   const remaining     = totalBudgeted - totalSpent;
 
   // Spending by category (bar chart)
-  const byCat = Object.entries(CATS).map(([id, name]) => {
+  const byCat = categories.map(cat => {
     const spent = filtered
-      .filter(e => e.categoryID === parseInt(id))
+      .filter(e => e.categoryID === cat.categoryID)
       .reduce((s, e) => s + e.amount, 0);
-    return { id: parseInt(id), name, spent };
+    return { id: cat.categoryID, name: cat.categoryName, spent };
   }).filter(c => c.spent > 0);
   const maxSpent = byCat.length ? Math.max(...byCat.map(c => c.spent)) : 1;
 
@@ -151,7 +168,7 @@ function Reports({ users = [], currentUser = {} }) {
       ...expenses.map(expense => [
         csvEscape(expense.expenseID),
         csvEscape(getName(expense.userID)),
-        csvEscape(CATS[expense.categoryID] || 'Unknown'),
+        csvEscape(catMap[expense.categoryID] || 'Unknown'),
         csvEscape(expense.amount.toFixed(2)),
         csvEscape(expense.description),
         csvEscape(expense.expenseDate),
@@ -164,7 +181,7 @@ function Reports({ users = [], currentUser = {} }) {
       'Student,Category,Amount',
       ...budgets.map(budget => [
         csvEscape(getName(budget.userID)),
-        csvEscape(CATS[budget.categoryID] || 'Unknown'),
+        csvEscape(catMap[budget.categoryID] || 'Unknown'),
         csvEscape(budget.amount.toFixed(2)),
       ].join(',')),
     ];
@@ -213,7 +230,7 @@ function Reports({ users = [], currentUser = {} }) {
       body: expenses.map(expense => [
         String(expense.expenseID),
         getName(expense.userID),
-        CATS[expense.categoryID] || 'Unknown',
+        catMap[expense.categoryID] || 'Unknown',
         `R ${expense.amount.toFixed(2)}`,
         expense.description,
         expense.expenseDate,
@@ -227,7 +244,7 @@ function Reports({ users = [], currentUser = {} }) {
       head: [['Student', 'Category', 'Amount']],
       body: budgets.map(budget => [
         getName(budget.userID),
-        CATS[budget.categoryID] || 'Unknown',
+        catMap[budget.categoryID] || 'Unknown',
         `R ${budget.amount.toFixed(2)}`,
       ]),
       styles: { fontSize: 9 },
@@ -297,8 +314,8 @@ function Reports({ users = [], currentUser = {} }) {
             <div className="field"><label>Filter by Category</label>
               <select value={filterCat} onChange={e => setFilterCat(e.target.value)}>
                 <option value="all">All Categories</option>
-                {Object.entries(CATS).map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
+                {categories.map(cat => (
+                  <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>
                 ))}
               </select>
             </div>
@@ -400,7 +417,7 @@ function Reports({ users = [], currentUser = {} }) {
                   <tr key={e.expenseID}>
                     <td className="id-cell">#{e.expenseID}</td>
                     {isAdmin && <td><strong>{getName(e.userID)}</strong></td>}
-                    <td><span className="cat-pill">{CATS[e.categoryID]}</span></td>
+                    <td><span className="cat-pill">{catMap[e.categoryID] || 'Unknown'}</span></td>
                     <td className="amount-cell">R {parseFloat(e.amount).toFixed(2)}</td>
                     <td style={{ fontSize:'0.82rem', color:'var(--muted)' }}>{e.description}</td>
                     <td>{e.expenseDate}</td>

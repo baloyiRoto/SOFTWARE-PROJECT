@@ -10,6 +10,9 @@ import Inventory  from './pages/Inventory';
 import RecipeGenerator from './pages/RecipeGenerator';
 import ShoppingSuggestions from './pages/ShoppingSuggestions';
 import ModuleSelection from './pages/ModuleSelection';
+import About      from './pages/About';
+import Contact    from './pages/Contact';
+import Tutorial   from './pages/Tutorial';
 import { SESSION_KEY, hashPassword } from './auth';
 
 function Header({ currentUser, onLogout }) {
@@ -27,9 +30,9 @@ function Header({ currentUser, onLogout }) {
               {currentUser.role === 'admin' && (
                 <NavLink to="/spendsmart/users" className={({ isActive }) => isActive ? 'active' : ''}>Users</NavLink>
               )}
-              <NavLink to="/spendsmart/expenses"   className={({ isActive }) => isActive ? 'active' : ''}>Expenses</NavLink>
               <NavLink to="/spendsmart/categories" className={({ isActive }) => isActive ? 'active' : ''}>Categories</NavLink>
               <NavLink to="/spendsmart/budgets"    className={({ isActive }) => isActive ? 'active' : ''}>Budgets</NavLink>
+              <NavLink to="/spendsmart/expenses"   className={({ isActive }) => isActive ? 'active' : ''}>Expenses</NavLink>
               <NavLink to="/spendsmart/reports"    className={({ isActive }) => isActive ? 'active' : ''}>Reports</NavLink>
               <div className="module-switcher">
                 <span>Switch to:</span>
@@ -67,15 +70,13 @@ function Footer() {
         </div>
         <div className="footer-section">
           <h3>Quick Links</h3>
-          <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer">Facebook</a>
-          <a href="https://www.twitter.com" target="_blank" rel="noopener noreferrer">Twitter</a>
-          <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer">Instagram</a>
-          <a href="https://www.linkedin.com" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          <NavLink to="/about">About Us</NavLink>
+          <NavLink to="/contact">Contact Us</NavLink>
         </div>
         <div className="footer-section">
           <h3>Resources</h3>
+          <a href="https://www.varsityvibe.co.za" target="_blank" rel="noopener noreferrer">Varsity Vibe</a>
           <a href="https://www.studentlife.co.za" target="_blank" rel="noopener noreferrer">Student Life SA</a>
-          <a href="https://www.nsfas.org.za" target="_blank" rel="noopener noreferrer">NSFAS</a>
           <a href="https://www.careers24.com" target="_blank" rel="noopener noreferrer">Careers24</a>
         </div>
       </div>
@@ -164,7 +165,7 @@ function LoginPage({ users, onLogin, onBackfillPasswordHash }) {
             <input
               type="email"
               autoComplete="email"
-              placeholder="admin@spendsmart.com"
+              placeholder="Email"
               value={email}
               onChange={event => setEmail(event.target.value)}
             />
@@ -175,7 +176,7 @@ function LoginPage({ users, onLogin, onBackfillPasswordHash }) {
             <input
               type="password"
               autoComplete="current-password"
-              placeholder="Your account password"
+              placeholder="Password"
               value={password}
               onChange={event => setPassword(event.target.value)}
             />
@@ -320,6 +321,7 @@ function App() {
   });
 
   const [currentUser, setCurrentUser] = useState(() => readSessionUser());
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const [nextUserID, setNextUserID] = useState(() => {
     try {
@@ -413,6 +415,9 @@ function App() {
       email: newUser.email,
       role: newUser.role,
     });
+    
+    // Show tutorial for new users
+    setShowTutorial(true);
   };
 
   const RequireAuth = ({ children, adminOnly = false }) => {
@@ -436,9 +441,11 @@ function App() {
         <Route path="/login" element={currentUser ? <Navigate to="/modules" replace /> : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
         <Route path="/signup" element={currentUser ? <Navigate to="/modules" replace /> : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
         <Route path="/modules" element={<RequireAuth><ModuleSelection /></RequireAuth>} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
         
         {/* SpendSmart Module Routes */}
-        <Route path="/spendsmart" element={<RequireAuth><Navigate to="/spendsmart/reports" replace /></RequireAuth>} />
+        <Route path="/spendsmart" element={<RequireAuth><Navigate to="/spendsmart/categories" replace /></RequireAuth>} />
         <Route path="/spendsmart/users" element={
           <RequireAuth adminOnly>
             <Users users={users} setUsers={setUsers} nextUserID={nextUserID} setNextUserID={setNextUserID} />
@@ -457,6 +464,8 @@ function App() {
       </Routes>
 
       <Footer />
+      
+      {showTutorial && <Tutorial onComplete={() => setShowTutorial(false)} />}
     </Router>
   );
 }

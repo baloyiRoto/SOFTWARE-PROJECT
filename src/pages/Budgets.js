@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
 
-const CATS   = { 1:'Food', 2:'Transport', 3:'Rent', 4:'Stationery', 5:'Entertainment', 6:'Data' };
+const INITIAL_CATS = [
+  { categoryID: 1, categoryName: 'Food',          description: 'Groceries, takeaways and meals' },
+  { categoryID: 2, categoryName: 'Transport',     description: 'Taxi, bus and fuel costs' },
+  { categoryID: 3, categoryName: 'Rent',          description: 'Monthly accommodation payments' },
+  { categoryID: 4, categoryName: 'Stationery',    description: 'Books, pens and study materials' },
+  { categoryID: 5, categoryName: 'Entertainment', description: 'Streaming, outings and hobbies' },
+  { categoryID: 6, categoryName: 'Data',          description: 'Mobile data and internet' },
+];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const INITIAL_BUDGETS = [
@@ -22,6 +29,10 @@ function Budgets({ users = [], currentUser = {} }) {
     try { const s = localStorage.getItem('ss_budgets'); return s ? JSON.parse(s) : INITIAL_BUDGETS; }
     catch { return INITIAL_BUDGETS; }
   });
+  const [categories, setCategories] = useState(() => {
+    try { const s = localStorage.getItem('ss_categories'); return s ? JSON.parse(s) : INITIAL_CATS; }
+    catch { return INITIAL_CATS; }
+  });
   const [nextID, setNextID] = useState(() => {
     try { const s = localStorage.getItem('ss_budgets_nid'); return s ? parseInt(s) : 9; }
     catch { return 9; }
@@ -29,6 +40,11 @@ function Budgets({ users = [], currentUser = {} }) {
 
   useEffect(() => { localStorage.setItem('ss_budgets', JSON.stringify(budgets)); }, [budgets]);
   useEffect(() => { localStorage.setItem('ss_budgets_nid', String(nextID)); }, [nextID]);
+
+  const catMap = categories.reduce((acc, cat) => {
+    acc[cat.categoryID] = cat.categoryName;
+    return acc;
+  }, {});
 
   // Form state — default to first user in live list
   const [userID,     setUserID]     = useState('');
@@ -126,7 +142,7 @@ function Budgets({ users = [], currentUser = {} }) {
 
           <div className="field"><label>Category</label>
             <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
-              {Object.entries(CATS).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+              {categories.map(cat => <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>)}
             </select></div>
 
           <div className="field"><label>Amount (R) *</label>
@@ -159,7 +175,7 @@ function Budgets({ users = [], currentUser = {} }) {
                 <tr key={b.budgetID}>
                   <td className="id-cell">#{b.budgetID}</td>
                   {isAdmin && <td><strong>{getName(b.userID)}</strong></td>}
-                  <td><span className="cat-pill">{CATS[b.categoryID]}</span></td>
+                  <td><span className="cat-pill">{catMap[b.categoryID] || 'Unknown'}</span></td>
                   <td className="amount-cell">R {parseFloat(b.amount).toFixed(2)}</td>
                   <td>{MONTHS[b.month-1]} {b.year}</td>
                   <td style={{ display:'flex', gap:6 }}>
@@ -185,7 +201,7 @@ function Budgets({ users = [], currentUser = {} }) {
             <div className="field"><label>Category</label>
               <select value={editBudget.categoryID}
                 onChange={e => setEditBudget({...editBudget, categoryID:parseInt(e.target.value)})}>
-                {Object.entries(CATS).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+                {categories.map(cat => <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>)}
               </select></div>
             <div className="field"><label>Amount (R)</label>
               <input type="number" min="0" step="0.01" value={editBudget.amount}

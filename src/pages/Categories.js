@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../App.css';
 
 const INITIAL_CATS = [
@@ -11,8 +11,17 @@ const INITIAL_CATS = [
 ];
 
 function Categories({ currentUser = {} }) {
-  const [categories, setCategories] = useState(INITIAL_CATS);
-  const [nextID, setNextID]         = useState(7);
+  const [categories, setCategories] = useState(() => {
+    try { const s = localStorage.getItem('ss_categories'); return s ? JSON.parse(s) : INITIAL_CATS; }
+    catch { return INITIAL_CATS; }
+  });
+  const [nextID, setNextID]         = useState(() => {
+    try { const s = localStorage.getItem('ss_categories_nid'); return s ? parseInt(s) : 7; }
+    catch { return 7; }
+  });
+
+  useEffect(() => { localStorage.setItem('ss_categories', JSON.stringify(categories)); }, [categories]);
+  useEffect(() => { localStorage.setItem('ss_categories_nid', String(nextID)); }, [nextID]);
 
   // Insert form
   const [newName, setNewName]       = useState('');

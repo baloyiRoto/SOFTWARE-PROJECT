@@ -109,6 +109,7 @@ Format your response as JSON with these fields:
         const recipe = JSON.parse(data.choices[0].message.content);
         
         setGeneratedRecipe(recipe);
+        setLoading(false);
         showAlert('Recipe generated successfully!');
         return;
       } catch (error) {

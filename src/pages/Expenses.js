@@ -3,6 +3,15 @@ import '../App.css';
 
 const CATS = { 1:'Food', 2:'Transport', 3:'Rent', 4:'Stationery', 5:'Entertainment', 6:'Data' };
 
+const INITIAL_CATS = [
+  { categoryID: 1, categoryName: 'Food',          description: 'Groceries, takeaways and meals' },
+  { categoryID: 2, categoryName: 'Transport',     description: 'Taxi, bus and fuel costs' },
+  { categoryID: 3, categoryName: 'Rent',          description: 'Monthly accommodation payments' },
+  { categoryID: 4, categoryName: 'Stationery',    description: 'Books, pens and study materials' },
+  { categoryID: 5, categoryName: 'Entertainment', description: 'Streaming, outings and hobbies' },
+  { categoryID: 6, categoryName: 'Data',          description: 'Mobile data and internet' },
+];
+
 const INITIAL_EXPENSES = [
   { expenseID:1,  userID:1, categoryID:1, amount:250.00,  description:'Groceries at Pick n Pay',    expenseDate:'2026-04-01' },
   { expenseID:2,  userID:1, categoryID:2, amount:80.00,   description:'Taxi to campus',             expenseDate:'2026-04-02' },
@@ -23,6 +32,20 @@ function Expenses({ users = [], currentUser = {} }) {
     try { const s = localStorage.getItem('ss_expenses'); return s ? JSON.parse(s) : INITIAL_EXPENSES; }
     catch { return INITIAL_EXPENSES; }
   });
+
+  const [categories, setCategories] = useState(() => {
+    try { const s = localStorage.getItem('ss_categories'); return s ? JSON.parse(s) : INITIAL_CATS; }
+    catch { return INITIAL_CATS; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ss_categories', JSON.stringify(categories));
+  }, [categories]);
+
+  const catMap = categories.reduce((acc, cat) => {
+    acc[cat.categoryID] = cat.categoryName;
+    return acc;
+  }, {});
   const [nextID, setNextID] = useState(() => {
     try { const s = localStorage.getItem('ss_expenses_nid'); return s ? parseInt(s) : 11; }
     catch { return 11; }
@@ -115,7 +138,7 @@ function Expenses({ users = [], currentUser = {} }) {
 
           <div className="field"><label>Category</label>
             <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
-              {Object.entries(CATS).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+              {categories.map(cat => <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>)}
             </select></div>
 
           <div className="row2">
@@ -145,7 +168,7 @@ function Expenses({ users = [], currentUser = {} }) {
                 <tr key={e.expenseID}>
                   <td className="id-cell">#{e.expenseID}</td>
                   {isAdmin && <td><strong>{getName(e.userID)}</strong></td>}
-                  <td><span className="cat-pill">{CATS[e.categoryID]}</span></td>
+                  <td><span className="cat-pill">{catMap[e.categoryID] || 'Unknown'}</span></td>
                   <td className="amount-cell">R {parseFloat(e.amount).toFixed(2)}</td>
                   <td>{e.expenseDate}</td>
                   <td style={{ display:'flex', gap:6 }}>
@@ -171,7 +194,7 @@ function Expenses({ users = [], currentUser = {} }) {
             <div className="field"><label>Category</label>
               <select value={editExp.categoryID}
                 onChange={e => setEditExp({...editExp, categoryID:parseInt(e.target.value)})}>
-                {Object.entries(CATS).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+                {categories.map(cat => <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>)}
               </select></div>
             <div className="row2">
               <div className="field"><label>Amount (R)</label>
