@@ -20,6 +20,8 @@ function Header({ currentUser, onLogout }) {
   const currentModule = location.pathname.startsWith('/spendsmart') ? 'spendsmart' :
                        location.pathname.startsWith('/mealmate') ? 'mealmate' : null;
 
+  const isAdmin = currentUser?.role === 'admin';
+
   return (
     <header>
       <div className="logo">Student<span>Hub</span></div>
@@ -27,19 +29,21 @@ function Header({ currentUser, onLogout }) {
         <nav className="nav">
           {currentModule === 'spendsmart' ? (
             <>
-              {currentUser.role === 'admin' && (
+              {isAdmin && (
                 <NavLink to="/spendsmart/users" className={({ isActive }) => isActive ? 'active' : ''}>Users</NavLink>
               )}
               <NavLink to="/spendsmart/categories" className={({ isActive }) => isActive ? 'active' : ''}>Categories</NavLink>
               <NavLink to="/spendsmart/budgets"    className={({ isActive }) => isActive ? 'active' : ''}>Budgets</NavLink>
               <NavLink to="/spendsmart/expenses"   className={({ isActive }) => isActive ? 'active' : ''}>Expenses</NavLink>
               <NavLink to="/spendsmart/reports"    className={({ isActive }) => isActive ? 'active' : ''}>Reports</NavLink>
-              <div className="module-switcher">
-                <span>Switch to:</span>
-                <NavLink to="/mealmate/inventory">MealMate</NavLink>
-              </div>
+              {!isAdmin && (
+                <div className="module-switcher">
+                  <span>Switch to:</span>
+                  <NavLink to="/mealmate/inventory">MealMate</NavLink>
+                </div>
+              )}
             </>
-          ) : currentModule === 'mealmate' ? (
+          ) : currentModule === 'mealmate' && !isAdmin ? (
             <>
               <NavLink to="/mealmate/inventory"  className={({ isActive }) => isActive ? 'active' : ''}>Inventory</NavLink>
               <NavLink to="/mealmate/recipes"    className={({ isActive }) => isActive ? 'active' : ''}>Recipes</NavLink>
@@ -440,7 +444,7 @@ function App() {
         <Route path="/" element={currentUser ? <Navigate to="/modules" replace /> : <LandingPage />} />
         <Route path="/login" element={currentUser ? <Navigate to="/modules" replace /> : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
         <Route path="/signup" element={currentUser ? <Navigate to="/modules" replace /> : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
-        <Route path="/modules" element={<RequireAuth><ModuleSelection /></RequireAuth>} />
+        <Route path="/modules" element={<RequireAuth><ModuleSelection currentUser={currentUser} /></RequireAuth>} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         
@@ -458,9 +462,21 @@ function App() {
         
         {/* MealMate Module Routes */}
         <Route path="/mealmate" element={<RequireAuth><Navigate to="/mealmate/inventory" replace /></RequireAuth>} />
-        <Route path="/mealmate/inventory"  element={<RequireAuth><Inventory  users={users} currentUser={currentUser} /></RequireAuth>} />
-        <Route path="/mealmate/recipes"    element={<RequireAuth><RecipeGenerator users={users} currentUser={currentUser} /></RequireAuth>} />
-        <Route path="/mealmate/shopping"   element={<RequireAuth><ShoppingSuggestions users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/mealmate/inventory" element={
+          <RequireAuth>
+            {currentUser?.role === 'admin' ? <Navigate to="/spendsmart/reports" replace /> : <Inventory users={users} currentUser={currentUser} />}
+          </RequireAuth>
+        } />
+        <Route path="/mealmate/recipes" element={
+          <RequireAuth>
+            {currentUser?.role === 'admin' ? <Navigate to="/spendsmart/reports" replace /> : <RecipeGenerator users={users} currentUser={currentUser} />}
+          </RequireAuth>
+        } />
+        <Route path="/mealmate/shopping" element={
+          <RequireAuth>
+            {currentUser?.role === 'admin' ? <Navigate to="/spendsmart/reports" replace /> : <ShoppingSuggestions users={users} currentUser={currentUser} />}
+          </RequireAuth>
+        } />
       </Routes>
 
       <Footer />

@@ -54,7 +54,7 @@ function Reports({ users = [], currentUser = {} }) {
     catch { return INITIAL_EXPENSES; }
   });
 
-  const [categories, setCategories] = useState(() => {
+  const [categories] = useState(() => {
     try { const s = localStorage.getItem('ss_categories'); return s ? JSON.parse(s) : INITIAL_CATS; }
     catch { return INITIAL_CATS; }
   });
@@ -71,12 +71,41 @@ function Reports({ users = [], currentUser = {} }) {
 
   // Re-read expenses & budgets whenever the page mounts (picks up changes from other pages)
   useEffect(() => {
-    try {
-      const e = localStorage.getItem('ss_expenses');
-      const b = localStorage.getItem('ss_budgets');
-      if (e) setExpenses(JSON.parse(e));
-      if (b) setBudgets(JSON.parse(b));
-    } catch {}
+    const handleStorageChange = () => {
+      try {
+        const e = localStorage.getItem('ss_expenses');
+        const b = localStorage.getItem('ss_budgets');
+        if (e) setExpenses(JSON.parse(e));
+        if (b) setBudgets(JSON.parse(b));
+      } catch {}
+    };
+
+    // Listen for storage changes from other tabs/windows
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check on mount
+    handleStorageChange();
+
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Additional listener specifically for budget changes to ensure immediate refresh
+  useEffect(() => {
+    const handleBudgetChange = () => {
+      try {
+        const b = localStorage.getItem('ss_budgets');
+        if (b) setBudgets(JSON.parse(b));
+      } catch {}
+    };
+
+    window.addEventListener('storage', handleBudgetChange);
+    window.addEventListener('budgetChange', handleBudgetChange);
+    handleBudgetChange();
+
+    return () => {
+      window.removeEventListener('storage', handleBudgetChange);
+      window.removeEventListener('budgetChange', handleBudgetChange);
+    };
   }, []);
 
   const [filterStudent, setFilterStudent] = useState('all');
@@ -112,6 +141,25 @@ function Reports({ users = [], currentUser = {} }) {
   const highest       = filtered.length ? Math.max(...filtered.map(e => e.amount)) : 0;
   const remaining     = totalBudgeted - totalSpent;
 
+  // Calculate budget vs actual by category
+  const budgetVsActual = categories.map(cat => {
+    const catBudget = filteredBudgets
+      .filter(b => b.categoryID === cat.categoryID)
+      .reduce((sum, b) => sum + b.amount, 0);
+    const catSpent = filtered
+      .filter(e => e.categoryID === cat.categoryID)
+      .reduce((sum, e) => sum + e.amount, 0);
+    const overspent = catSpent > catBudget && catBudget > 0 ? catSpent - catBudget : 0;
+    return {
+      id: cat.categoryID,
+      name: cat.categoryName,
+      budget: catBudget,
+      spent: catSpent,
+      overspent,
+      isOverspent: overspent > 0
+    };
+  }).filter(c => c.budget > 0 || c.spent > 0);
+
   // Spending by category (bar chart)
   const byCat = categories.map(cat => {
     const spent = filtered
@@ -144,10 +192,6 @@ function Reports({ users = [], currentUser = {} }) {
   const exportRemaining = exportSummary.totalBudgeted - exportSummary.totalSpent;
 
   const handleExportCSV = () => {
-    if (!isAdmin) {
-      return;
-    }
-
     const generatedAt = new Date().toISOString();
 
     const summaryLines = [
@@ -158,14 +202,14 @@ function Reports({ users = [], currentUser = {} }) {
       `${csvEscape('Budget Remaining')},${csvEscape(`R ${Math.abs(exportRemaining).toFixed(2)}${exportRemaining < 0 ? ' OVER' : ''}`)}`,
       `${csvEscape('Highest Expense')},${csvEscape(`R ${exportSummary.highestExpense.toFixed(2)}`)}`,
       `${csvEscape('Total Records')},${csvEscape(exportSummary.totalRecords)}`,
-      `${csvEscape('Students')},${csvEscape(exportSummary.studentCount)}`,
+      ...(isAdmin ? [`${csvEscape('Students')},${csvEscape(exportSummary.studentCount)}`] : []),
       '',
     ];
 
     const expenseLines = [
       'Expense Records',
       'ID,Student,Category,Amount,Description,Date',
-      ...expenses.map(expense => [
+      ...filtered.map(expense => [
         csvEscape(expense.expenseID),
         csvEscape(getName(expense.userID)),
         csvEscape(catMap[expense.categoryID] || 'Unknown'),
@@ -179,7 +223,7 @@ function Reports({ users = [], currentUser = {} }) {
     const budgetLines = [
       'Budget Records',
       'Student,Category,Amount',
-      ...budgets.map(budget => [
+      ...filteredBudgets.map(budget => [
         csvEscape(getName(budget.userID)),
         csvEscape(catMap[budget.categoryID] || 'Unknown'),
         csvEscape(budget.amount.toFixed(2)),
@@ -220,14 +264,14 @@ function Reports({ users = [], currentUser = {} }) {
         ['Budget Remaining', `R ${Math.abs(exportRemaining).toFixed(2)}${exportRemaining < 0 ? ' OVER' : ''}`],
         ['Highest Expense', `R ${exportSummary.highestExpense.toFixed(2)}`],
         ['Total Records', String(exportSummary.totalRecords)],
-        ['Students', String(exportSummary.studentCount)],
+        ...(isAdmin ? [['Students', String(exportSummary.studentCount)]] : []),
       ],
     });
 
     autoTable(doc, {
       startY: (doc.lastAutoTable?.finalY || 32) + 10,
       head: [['ID', 'Student', 'Category', 'Amount', 'Description', 'Date']],
-      body: expenses.map(expense => [
+      body: filtered.map(expense => [
         String(expense.expenseID),
         getName(expense.userID),
         catMap[expense.categoryID] || 'Unknown',
@@ -242,7 +286,7 @@ function Reports({ users = [], currentUser = {} }) {
     autoTable(doc, {
       startY: (doc.lastAutoTable?.finalY || 32) + 10,
       head: [['Student', 'Category', 'Amount']],
-      body: budgets.map(budget => [
+      body: filteredBudgets.map(budget => [
         getName(budget.userID),
         catMap[budget.categoryID] || 'Unknown',
         `R ${budget.amount.toFixed(2)}`,
@@ -293,16 +337,18 @@ function Reports({ users = [], currentUser = {} }) {
       </div>
 
       {/* ── FILTERS ── */}
-      {isAdmin && (
-        <div className="card" style={{ marginBottom:24 }}>
-          <div className="report-toolbar">
-            <div className="card-title" style={{ marginBottom: 0, borderBottom: 'none', paddingBottom: 0 }}>Filter Report</div>
-            <div className="export-actions">
-              <button className="export-btn" onClick={handleExportCSV}>Export CSV</button>
-              <button className="export-btn" onClick={handleExportPDF}>Export PDF</button>
-            </div>
+      <div className="card" style={{ marginBottom:24 }}>
+        <div className="report-toolbar">
+          <div className="card-title" style={{ marginBottom: 0, borderBottom: 'none', paddingBottom: 0 }}>
+            {isAdmin ? 'Filter Report' : 'Your Report'}
           </div>
-          <div className="row2">
+          <div className="export-actions">
+            <button className="export-btn" onClick={handleExportCSV}>Export CSV</button>
+            <button className="export-btn" onClick={handleExportPDF}>Export PDF</button>
+          </div>
+        </div>
+        {isAdmin && (
+        <div className="row2">
             <div className="field"><label>Filter by Student</label>
               <select value={filterStudent} onChange={e => setFilterStudent(e.target.value)}>
                 <option value="all">All Students</option>
@@ -320,42 +366,163 @@ function Reports({ users = [], currentUser = {} }) {
               </select>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── CHARTS ROW ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:24 }}>
+      {isAdmin ? (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:24 }}>
+          {/* Budget vs Actual by Category */}
+          <div className="card">
+            <div className="card-title">Budget vs Actual by Category</div>
+            {budgetVsActual.length === 0
+              ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data available.</p>
+              : budgetVsActual.map(c => (
+                  <div key={c.id} style={{ 
+                    marginBottom:14, 
+                    padding:12, 
+                    borderRadius:8, 
+                    background: c.isOverspent ? '#fee2e2' : 'var(--bg)',
+                    border: c.isOverspent ? '2px solid #dc3545' : '1px solid var(--border)'
+                  }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                      <span style={{ fontWeight:600, color:'var(--text)', fontSize:'0.9rem' }}>{c.name}</span>
+                      {c.isOverspent && (
+                        <span style={{ 
+                          fontSize:'0.75rem', 
+                          padding:'2px 8px', 
+                          borderRadius:'4px',
+                          background:'#dc3545', 
+                          color:'white',
+                          fontWeight:700
+                        }}>
+                          OVERSPENT
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:'0.85rem' }}>
+                      <div>
+                        <span style={{ color:'var(--muted)' }}>Budget:</span>
+                        <span style={{ fontWeight:600, marginLeft:4 }}>R {c.budget.toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span style={{ color:'var(--muted)' }}>Spent:</span>
+                        <span style={{ fontWeight:600, marginLeft:4, color: c.isOverspent ? '#dc3545' : 'inherit' }}>R {c.spent.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    {c.isOverspent && (
+                      <div style={{ marginTop:8, padding:6, background:'#dc3545', borderRadius:4, fontSize:'0.8rem', color:'white', textAlign:'center', fontWeight:600 }}>
+                        ⚠️ Overspent by R {c.overspent.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+          </div>
 
-        {/* Spending by Category */}
-        <div className="card">
-          <div className="card-title">Spending by Category</div>
-          {byCat.length === 0
-            ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data for selected filters.</p>
-            : byCat.map(c => (
-              <div key={c.id} style={{ marginBottom:14 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.8rem', marginBottom:5 }}>
-                  <span style={{ fontWeight:600, color:'var(--text)' }}>{c.name}</span>
-                  <span style={{ color:'var(--purple)', fontWeight:700 }}>R {c.spent.toFixed(2)}</span>
+          {/* Monthly Trends */}
+          <div className="card">
+            <div className="card-title">Monthly Spending Trends</div>
+            <div style={{ padding:16 }}>
+              <p style={{ color:'var(--muted)', fontSize:'0.88rem', marginBottom:12 }}>
+                {filtered.length > 0 
+                  ? `From ${new Date(filtered[0].expenseDate).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })} to ${new Date(filtered[filtered.length - 1].expenseDate).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}`
+                  : 'No expense data available'
+                }
+              </p>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12 }}>
+                <div style={{ padding:12, background:'var(--bg)', borderRadius:8 }}>
+                  <div style={{ fontSize:'0.8rem', color:'var(--muted)', marginBottom:4 }}>Total Spent</div>
+                  <div style={{ fontSize:'1.2rem', fontWeight:700, color:'var(--purple)' }}>R {totalSpent.toFixed(2)}</div>
                 </div>
-                <div style={{ height:10, borderRadius:99, background:'var(--purple-light)', overflow:'hidden' }}>
-                  <div style={{
-                    height:'100%', borderRadius:99,
-                    background: CAT_COLORS[c.id] || 'var(--purple)',
-                    width:`${(c.spent / maxSpent) * 100}%`,
-                    transition:'width 0.6s ease'
-                  }} />
+                <div style={{ padding:12, background:'var(--bg)', borderRadius:8 }}>
+                  <div style={{ fontSize:'0.8rem', color:'var(--muted)', marginBottom:4 }}>Avg per Student</div>
+                  <div style={{ fontSize:'1.2rem', fontWeight:700, color:'var(--purple)' }}>R {(totalSpent / users.length).toFixed(2)}</div>
+                </div>
+                <div style={{ padding:12, background:'var(--bg)', borderRadius:8 }}>
+                  <div style={{ fontSize:'0.8rem', color:'var(--muted)', marginBottom:4 }}>Most Common Category</div>
+                  <div style={{ fontSize:'1rem', fontWeight:700, color:'var(--text)' }}>
+                    {byCat.length > 0 ? byCat.sort((a, b) => b.spent - a.spent)[0].name : 'N/A'}
+                  </div>
+                </div>
+                <div style={{ padding:12, background:'var(--bg)', borderRadius:8 }}>
+                  <div style={{ fontSize:'0.8rem', color:'var(--muted)', marginBottom:4 }}>Budget Utilization</div>
+                  <div style={{ fontSize:'1rem', fontWeight:700, color:remaining >= 0 ? '#28a745' : '#e11d48' }}>
+                    {totalBudgeted > 0 ? `${((totalSpent / totalBudgeted) * 100).toFixed(0)}%` : 'N/A'}
+                  </div>
                 </div>
               </div>
-            ))
-          }
+              
+              {/* Recommendations based on trends */}
+              <div style={{ marginTop:16, padding:12, background:'#f0fdf4', borderRadius:8, border:'1px solid #22c55e' }}>
+                <div style={{ fontSize:'0.9rem', fontWeight:700, color:'#166534', marginBottom:8 }}>💡 Recommendations</div>
+                <ul style={{ margin:0, paddingLeft:20, fontSize:'0.85rem', color:'#166534', lineHeight:'1.5' }}>
+                  {remaining < 0 && <li>Overall spending exceeds budget by R {Math.abs(remaining).toFixed(2)}. Consider reviewing controllable categories like Data and Transport.</li>}
+                  {byCat.length > 0 && byCat.filter(c => {
+                    const catBudget = filteredBudgets.filter(b => b.categoryID === c.id).reduce((sum, b) => sum + b.amount, 0);
+                    return c.spent > catBudget && catBudget > 0;
+                  }).length > 0 && <li>Some categories are overspent. Focus on reducing spending in the top overspending categories listed above.</li>}
+                  {totalBudgeted > 0 && (totalSpent / totalBudgeted) > 0.9 && <li>Budget utilization is high. Consider setting aside emergency funds for unexpected expenses.</li>}
+                  {byCat.length > 0 && <li>Top spending category is {byCat.sort((a, b) => b.spent - a.spent)[0].name}. Review if this aligns with your priorities.</li>}
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:24 }}>
+          {/* Budget vs Actual by Category */}
+          <div className="card">
+            <div className="card-title">Budget vs Actual by Category</div>
+            {budgetVsActual.length === 0
+              ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data available.</p>
+              : budgetVsActual.map(c => (
+                  <div key={c.id} style={{ 
+                    marginBottom:14, 
+                    padding:12, 
+                    borderRadius:8, 
+                    background: c.isOverspent ? '#fee2e2' : 'var(--bg)',
+                    border: c.isOverspent ? '2px solid #dc3545' : '1px solid var(--border)'
+                  }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                      <span style={{ fontWeight:600, color:'var(--text)', fontSize:'0.9rem' }}>{c.name}</span>
+                      {c.isOverspent && (
+                        <span style={{ 
+                          fontSize:'0.75rem', 
+                          padding:'2px 8px', 
+                          borderRadius:'4px',
+                          background:'#dc3545', 
+                          color:'white',
+                          fontWeight:700
+                        }}>
+                          OVERSPENT
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, fontSize:'0.85rem' }}>
+                      <div>
+                        <span style={{ color:'var(--muted)' }}>Budget:</span>
+                        <span style={{ fontWeight:600, marginLeft:4 }}>R {c.budget.toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span style={{ color:'var(--muted)' }}>Spent:</span>
+                        <span style={{ fontWeight:600, marginLeft:4, color: c.isOverspent ? '#dc3545' : 'inherit' }}>R {c.spent.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    {c.isOverspent && (
+                      <div style={{ marginTop:8, padding:6, background:'#dc3545', borderRadius:4, fontSize:'0.8rem', color:'white', textAlign:'center', fontWeight:600 }}>
+                        ⚠️ Overspent by R {c.overspent.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+          </div>
 
-        {/* Budget vs Actual per Student */}
-        <div className="card">
-          <div className="card-title">Budget vs Actual</div>
-          {byStudent.length === 0
-            ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data available.</p>
-            : <table>
+          {/* Budget vs Actual per Student */}
+          <div className="card">
+            <div className="card-title">Budget vs Actual</div>
+            {byStudent.length === 0
+              ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data available.</p>
+              : <table>
                 <thead>
                   <tr>
                     <th>Student</th>
@@ -388,9 +555,10 @@ function Reports({ users = [], currentUser = {} }) {
                   })}
                 </tbody>
               </table>
-          }
+            }
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── FULL EXPENSE TABLE ── */}
       <div className="card">

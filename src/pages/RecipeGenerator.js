@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../App.css';
 
 const GROQ_API_KEY = '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';
 
 function RecipeGenerator({ users = [], currentUser = {} }) {
-  const [inventory] = useState(() => {
+  const [inventory, setInventory] = useState(() => {
     try { const s = localStorage.getItem('mm_inventory'); return s ? JSON.parse(s) : []; }
     catch { return []; }
   });
@@ -30,9 +30,76 @@ function RecipeGenerator({ users = [], currentUser = {} }) {
     ? inventory
     : inventory.filter(item => item.userID === currentUser.userID);
 
+  useEffect(() => {
+    localStorage.setItem('mm_inventory', JSON.stringify(inventory));
+  }, [inventory]);
+
   const showAlert = (msg, type = 'alert-success') => {
     setAlert({ show: true, msg, type });
     setTimeout(() => setAlert({ show: false, msg: '', type: '' }), 4000);
+  };
+
+  const useRecipe = async () => {
+    if (!generatedRecipe) return;
+    
+    setLoading(true);
+    
+    try {
+      // Use AI to parse ingredients and extract quantities
+      const prompt = `Parse these recipe ingredients and extract the item names and quantities needed:
+${generatedRecipe.ingredients.join('\n')}
+
+Return JSON in this format:
+{
+  "items": [
+    {"name": "item name", "quantity": number, "unit": "unit"}
+  ]
+}`;
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant that parses recipe ingredients and extracts item names and quantities in JSON format.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3,
+          response_format: { type: 'json_object' }
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const parsed = JSON.parse(data.choices[0].message.content);
+        
+        // Update inventory by reducing quantities
+        const updatedInventory = inventory.map(item => {
+          const usedItem = parsed.items.find(p => 
+            p.name.toLowerCase().includes(item.name.toLowerCase()) || 
+            item.name.toLowerCase().includes(p.name.toLowerCase())
+          );
+          
+          if (usedItem) {
+            const newQuantity = Math.max(0, item.quantity - usedItem.quantity);
+            return { ...item, quantity: newQuantity };
+          }
+          return item;
+        });
+        
+        setInventory(updatedInventory);
+        showAlert('Inventory updated! Quantities reduced based on recipe.');
+      }
+    } catch (error) {
+      console.error('Error using recipe:', error);
+      showAlert('Failed to update inventory. Please try again.', 'alert-error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleIngredient = (itemID) => {
@@ -63,9 +130,11 @@ function RecipeGenerator({ users = [], currentUser = {} }) {
     setGeneratedRecipe(null);
 
     const prompt = `You are a helpful cooking assistant. I have these ingredients: ${ingredientsList}. 
-Please generate a ${mealType !== 'any' ? mealType : 'meal'} recipe for ${servings} people using these ingredients.
-The recipe should be practical and use as many of the available ingredients as possible.
-If additional ingredients are needed, list them as "You'll also need: [ingredients]".
+Please generate a ${mealType !== 'any' ? mealType : 'meal'} recipe for ${servings} people using ONLY these ingredients.
+The recipe must be practical and use as many of the available ingredients as possible.
+CRITICAL: DO NOT suggest any additional ingredients that are not in the list. The recipe should work with what the user has.
+DO NOT include phrases like "you'll also need" or "you might want to add". Use ONLY the ingredients listed.
+If it's not possible to make a complete meal with only these ingredients, suggest the best possible dish using what's available.
 Format your response as JSON with these fields:
 {
   "title": "Recipe name",
@@ -73,9 +142,8 @@ Format your response as JSON with these fields:
   "prepTime": "Preparation time",
   "cookTime": "Cooking time",
   "servings": "Number of servings",
-  "ingredients": ["ingredient 1", "ingredient 2", ...],
-  "instructions": ["step 1", "step 2", ...],
-  "additionalNeeded": ["ingredient 1", "ingredient 2", ...]
+  "ingredients": ["ingredient 1 with quantity from inventory", "ingredient 2 with quantity from inventory", ...],
+  "instructions": ["step 1", "step 2", ...]
 }`;
 
     let retries = 3;
@@ -331,17 +399,6 @@ Format your response as JSON with these fields:
                 </ul>
               </div>
 
-              {generatedRecipe.additionalNeeded && generatedRecipe.additionalNeeded.length > 0 && (
-                <div className="recipe-section additional">
-                  <h3>🛒 You'll also need</h3>
-                  <ul>
-                    {generatedRecipe.additionalNeeded.map((ing, idx) => (
-                      <li key={idx}>{ing}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
               <div className="recipe-section">
                 <h3>Instructions</h3>
                 <ol>
@@ -351,9 +408,19 @@ Format your response as JSON with these fields:
                 </ol>
               </div>
 
-              <button className="btn" onClick={saveRecipe} style={{ marginTop: '20px' }}>
-                💾 Save Recipe
-              </button>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+                <button className="btn" onClick={saveRecipe}>
+                  💾 Save Recipe
+                </button>
+                <button 
+                  className="btn" 
+                  onClick={useRecipe}
+                  disabled={loading}
+                  style={{ background: '#22c55e' }}
+                >
+                  {loading ? 'Updating...' : '🍳 Use Recipe (Reduce Inventory)'}
+                </button>
+              </div>
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
@@ -406,17 +473,6 @@ Format your response as JSON with these fields:
                               ))}
                             </ul>
                           </div>
-
-                          {recipe.additionalNeeded && recipe.additionalNeeded.length > 0 && (
-                            <div className="recipe-section additional" style={{ marginBottom: '16px' }}>
-                              <h3>🛒 You'll also need</h3>
-                              <ul>
-                                {recipe.additionalNeeded.map((ing, idx) => (
-                                  <li key={idx}>{ing}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
 
                           <div className="recipe-section">
                             <h3>Instructions</h3>

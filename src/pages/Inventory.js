@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
 
+const GROQ_API_KEY = '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';
+
 const LOCATIONS = { 1: 'Fridge', 2: 'Cupboard', 3: 'Pantry', 4: 'Freezer' };
 const CATEGORIES = { 1: 'Vegetables', 2: 'Fruits', 3: 'Dairy', 4: 'Meat', 5: 'Grains', 6: 'Condiments', 7: 'Beverages', 8: 'Other' };
 const UNITS = ['kg', 'g', 'liters', 'ml', 'pieces', 'cups', 'tablespoons', 'teaspoons', 'loaves', 'packs', 'cans', 'bottles', 'boxes'];
@@ -43,10 +45,13 @@ function Inventory({ users = [], currentUser = {} }) {
 
   const [name, setName] = useState('');
   const [locationID, setLocationID] = useState('1');
-  const [categoryID, setCategoryID] = useState('1');
   const [quantity, setQuantity] = useState('1');
   const [unit, setUnit] = useState('pieces');
   const [expiryDate, setExpiryDate] = useState('');
+  const [isAutoClassifying, setIsAutoClassifying] = useState(false);
+  const [suggestedCategory, setSuggestedCategory] = useState(null);
+  const [bulkAddMode, setBulkAddMode] = useState(false);
+  const [inventoryEntries, setInventoryEntries] = useState([{ name: '', locationID: '1', quantity: '1', unit: 'pieces', expiryDate: '' }]);
 
   const getQuantityOptions = (selectedUnit) => QUANTITY_OPTIONS[selectedUnit] || [1, 2, 3, 4, 5];
   const [editOpen, setEditOpen] = useState(false);
@@ -65,29 +70,133 @@ function Inventory({ users = [], currentUser = {} }) {
     setTimeout(() => setAlert({ show: false, msg: '', type: '' }), 4000);
   };
 
+  // Auto-classify item using AI
+  const autoClassifyItem = async (itemName) => {
+    if (!itemName.trim()) {
+      setSuggestedCategory(null);
+      return;
+    }
+
+    setIsAutoClassifying(true);
+    
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: 'You are a food classification assistant. Classify food items into one of these categories: Vegetables, Fruits, Dairy, Meat, Grains, Condiments, Beverages, Other. Respond with ONLY the category name, nothing else.' },
+            { role: 'user', content: `Classify this item: ${itemName}` }
+          ],
+          temperature: 0.3,
+          max_tokens: 10
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const category = data.choices[0].message.content.trim();
+        
+        // Map category name to ID
+        const categoryMap = {
+          'Vegetables': 1,
+          'Fruits': 2,
+          'Dairy': 3,
+          'Meat': 4,
+          'Grains': 5,
+          'Condiments': 6,
+          'Beverages': 7,
+          'Other': 8
+        };
+        
+        setSuggestedCategory(categoryMap[category] || 8);
+      }
+    } catch {
+      // If AI fails, default to Other
+      setSuggestedCategory(8);
+    } finally {
+      setIsAutoClassifying(false);
+    }
+  };
+
+  // Auto-classify when name changes
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (name.trim()) {
+        autoClassifyItem(name);
+      }
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [name]);
+
   const addItem = () => {
-    if (!name.trim() || !quantity || !unit) {
-      showAlert('Name, quantity, and unit are required.', 'alert-error');
-      return;
+    if (!bulkAddMode) {
+      if (!name.trim() || !quantity || !unit) {
+        showAlert('Name, quantity, and unit are required.', 'alert-error');
+        return;
+      }
+      if (parseFloat(quantity) <= 0) {
+        showAlert('Quantity must be greater than zero.', 'alert-error');
+        return;
+      }
+      const newItem = {
+        itemID: nextID,
+        userID: currentUser.userID,
+        name: name.trim(),
+        locationID: parseInt(locationID),
+        categoryID: suggestedCategory || 8, // Use AI-suggested category or default to Other
+        quantity: parseFloat(quantity),
+        unit: unit,
+        expiryDate: expiryDate || null
+      };
+      setInventory(prev => [newItem, ...prev]);
+      setNextID(prev => prev + 1);
+      setName(''); setQuantity('1'); setUnit('pieces'); setExpiryDate(''); setSuggestedCategory(null);
+      showAlert('Item added to inventory!');
+    } else {
+      const validEntries = inventoryEntries.filter(entry => entry.name.trim() && entry.quantity && entry.unit);
+      if (validEntries.length === 0) {
+        showAlert('Please enter at least one valid item.', 'alert-error');
+        return;
+      }
+      
+      const newItems = validEntries.map(entry => ({
+        itemID: nextID + validEntries.indexOf(entry),
+        userID: currentUser.userID,
+        name: entry.name.trim(),
+        locationID: parseInt(entry.locationID),
+        categoryID: 8, // Default to Other for bulk add, could be enhanced with AI
+        quantity: parseFloat(entry.quantity),
+        unit: entry.unit,
+        expiryDate: entry.expiryDate || null
+      }));
+      
+      setInventory(prev => [...newItems, ...prev]);
+      setNextID(prev => prev + newItems.length);
+      setInventoryEntries([{ name: '', locationID: '1', quantity: '1', unit: 'pieces', expiryDate: '' }]);
+      showAlert(`${newItems.length} items added to inventory!`);
     }
-    if (parseFloat(quantity) <= 0) {
-      showAlert('Quantity must be greater than zero.', 'alert-error');
-      return;
+  };
+
+  const addInventoryEntry = () => {
+    setInventoryEntries([...inventoryEntries, { name: '', locationID: '1', quantity: '1', unit: 'pieces', expiryDate: '' }]);
+  };
+
+  const removeInventoryEntry = (index) => {
+    if (inventoryEntries.length > 1) {
+      setInventoryEntries(inventoryEntries.filter((_, i) => i !== index));
     }
-    const newItem = {
-      itemID: nextID,
-      userID: currentUser.userID,
-      name: name.trim(),
-      locationID: parseInt(locationID),
-      categoryID: parseInt(categoryID),
-      quantity: parseFloat(quantity),
-      unit: unit,
-      expiryDate: expiryDate || null
-    };
-    setInventory(prev => [newItem, ...prev]);
-    setNextID(prev => prev + 1);
-    setName(''); setQuantity('1'); setUnit('pieces'); setExpiryDate('');
-    showAlert('Item added to inventory!');
+  };
+
+  const updateInventoryEntry = (index, field, value) => {
+    const updated = [...inventoryEntries];
+    updated[index][field] = value;
+    setInventoryEntries(updated);
   };
 
   const saveEdit = () => {
@@ -132,38 +241,122 @@ function Inventory({ users = [], currentUser = {} }) {
       <div className="layout">
         {/* ── ADD FORM ── */}
         <div className="card">
-          <div className="card-title">Add Item</div>
-
-          <div className="field"><label>Item Name</label>
-            <input type="text" placeholder="e.g. Milk, Eggs, Rice"
-              value={name} onChange={e => setName(e.target.value)} /></div>
-
-          <div className="row2">
-            <div className="field"><label>Location</label>
-              <select value={locationID} onChange={e => setLocationID(e.target.value)}>
-                {Object.entries(LOCATIONS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select></div>
-            <div className="field"><label>Category</label>
-              <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
-                {Object.entries(CATEGORIES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select></div>
+          <div className="card-title">
+            Add Item
+            <button 
+              type="button" 
+              className="btn" 
+              style={{ float: 'right', fontSize: '0.8rem', padding: '4px 8px', background: bulkAddMode ? '#667eea' : '' }}
+              onClick={() => setBulkAddMode(!bulkAddMode)}
+            >
+              {bulkAddMode ? '📝 Single Add' : '📦 Bulk Add (Multiple Items)'}
+            </button>
           </div>
 
-          <div className="row2">
-            <div className="field"><label>Quantity</label>
-              <select value={quantity} onChange={e => setQuantity(e.target.value)}>
-                {getQuantityOptions(unit).map(q => <option key={q} value={q}>{q}</option>)}
-              </select></div>
-            <div className="field"><label>Unit</label>
-              <select value={unit} onChange={e => setUnit(e.target.value)}>
-                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-              </select></div>
-          </div>
+          {!bulkAddMode ? (
+            <>
+              <div style={{ padding: '8px 12px', background: '#f0f9ff', borderRadius: '6px', marginBottom: '16px', fontSize: '0.85rem', color: '#0369a1' }}>
+                💡 <strong>Tip:</strong> Use <strong>Bulk Add</strong> to add multiple items at once for faster inventory management
+              </div>
 
-          <div className="field"><label>Expiry Date (optional)</label>
-            <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} /></div>
+              <div className="field"><label>Item Name</label>
+                <input type="text" placeholder="e.g. Milk, Eggs, Rice"
+                  value={name} onChange={e => setName(e.target.value)} />
+                {isAutoClassifying && <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>🤖 AI classifying...</span>}
+              </div>
 
-          <button className="btn" onClick={addItem}>Add to Inventory</button>
+              {suggestedCategory && (
+                <div style={{ padding: '8px 12px', background: '#f0fdf4', borderRadius: '6px', marginBottom: '16px', fontSize: '0.85rem', color: '#166534' }}>
+                  🤖 AI classified as: <strong>{CATEGORIES[suggestedCategory]}</strong>
+                </div>
+              )}
+
+              <div className="field"><label>Location</label>
+                <select value={locationID} onChange={e => setLocationID(e.target.value)}>
+                  {Object.entries(LOCATIONS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </div>
+
+              <div className="row2">
+                <div className="field"><label>Quantity</label>
+                  <select value={quantity} onChange={e => setQuantity(e.target.value)}>
+                    {getQuantityOptions(unit).map(q => <option key={q} value={q}>{q}</option>)}
+                  </select></div>
+                <div className="field"><label>Unit</label>
+                  <select value={unit} onChange={e => setUnit(e.target.value)}>
+                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select></div>
+              </div>
+
+              <div className="field"><label>Expiry Date (optional)</label>
+                <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} /></div>
+
+              <button className="btn" onClick={addItem} disabled={isAutoClassifying}>
+                {isAutoClassifying ? 'Classifying...' : 'Add to Inventory'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: 16, padding: 12, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 6, fontSize: '0.9rem', color: 'white' }}>
+                � <strong>Bulk Add Mode:</strong> Add multiple items at once for faster inventory management
+              </div>
+
+              {inventoryEntries.map((entry, index) => (
+                <div key={index} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: index < inventoryEntries.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <strong>Item #{index + 1}</strong>
+                    <button 
+                      type="button" 
+                      className="del-btn"
+                      onClick={() => removeInventoryEntry(index)}
+                      disabled={inventoryEntries.length === 1}
+                      style={{ marginTop: 0 }}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="field"><label>Item Name</label>
+                    <input type="text" placeholder="e.g. Milk, Eggs, Rice"
+                      value={entry.name} onChange={e => updateInventoryEntry(index, 'name', e.target.value)} />
+                  </div>
+
+                  <div className="field"><label>Location</label>
+                    <select value={entry.locationID} onChange={e => updateInventoryEntry(index, 'locationID', e.target.value)}>
+                      {Object.entries(LOCATIONS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="row2">
+                    <div className="field"><label>Quantity</label>
+                      <select value={entry.quantity} onChange={e => updateInventoryEntry(index, 'quantity', e.target.value)}>
+                        {getQuantityOptions(entry.unit).map(q => <option key={q} value={q}>{q}</option>)}
+                      </select></div>
+                    <div className="field"><label>Unit</label>
+                      <select value={entry.unit} onChange={e => updateInventoryEntry(index, 'unit', e.target.value)}>
+                        {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                      </select></div>
+                  </div>
+
+                  <div className="field"><label>Expiry Date (optional)</label>
+                    <input type="date" value={entry.expiryDate} onChange={e => updateInventoryEntry(index, 'expiryDate', e.target.value)} /></div>
+                </div>
+              ))}
+
+              <button 
+                type="button" 
+                className="btn" 
+                onClick={addInventoryEntry}
+                style={{ fontSize: '0.8rem', padding: '6px 12px', marginTop: 8 }}
+              >
+                + Add Another Item
+              </button>
+
+              <button className="btn" onClick={addItem} style={{ marginTop: 16 }}>
+                Add {inventoryEntries.length} Items to Inventory
+              </button>
+            </>
+          )}
         </div>
 
         {/* ── TABLE ── */}
