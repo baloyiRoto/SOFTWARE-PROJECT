@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../App.css';
-
-const GROQ_API_KEY = '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';
 
 const INITIAL_CATS = [
   { categoryID: 1, categoryName: 'Food',          description: 'Groceries, takeaways and meals' },
@@ -99,7 +97,6 @@ function Expenses({ users = [], currentUser = {} }) {
   const [delID,       setDelID]       = useState(null);
   const [alert,       setAlert]       = useState({ show:false, msg:'', type:'' });
   const [budgetAlert, setBudgetAlert] = useState(null);
-  const [mlInsights,  setMlInsights]  = useState(null);
 
   const isAdmin = currentUser.role === 'admin';
   const visibleExpenses = isAdmin
@@ -162,69 +159,6 @@ function Expenses({ users = [], currentUser = {} }) {
     };
   };
 
-  // Generate ML-based budget insights
-  const generateMLInsights = useCallback(async () => {
-    if (visibleExpenses.length === 0) return;
-    
-    const recentExpenses = visibleExpenses.slice(0, 20);
-    const expenseSummary = recentExpenses.map(e => 
-      `${catMap[e.categoryID]}: R${e.amount} on ${e.expenseDate} - ${e.description}`
-    ).join('\n');
-    
-    const budgetSummary = visibleBudgets.map(b => 
-      `${catMap[b.categoryID]}: R${b.amount} for ${b.month}/${b.year}`
-    ).join('\n');
-
-    const prompt = `You are a budget tracking assistant. Analyze this spending data:
-
-Budgets:
-${budgetSummary || 'No budgets set'}
-
-Recent Expenses:
-${expenseSummary}
-
-Provide insights in JSON format:
-{
-  "spendingPatterns": ["pattern 1", "pattern 2"],
-  "riskCategories": ["category at risk of overspending"],
-  "recommendations": ["recommendation 1", "recommendation 2"],
-  "predictedOverspend": [{"category": "name", "likelihood": "high/medium/low", "reason": "why"}]
-}`;
-
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: 'You are a budget tracking assistant that provides insights in JSON format.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-          response_format: { type: 'json_object' }
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setMlInsights(JSON.parse(data.choices[0].message.content));
-      }
-    } catch (error) {
-      console.error('Error generating ML insights:', error);
-    }
-  }, [visibleExpenses, visibleBudgets, catMap]);
-
-  // Load ML insights on component mount only (not on every change)
-  useEffect(() => {
-    if (!isAdmin && visibleExpenses.length > 0) {
-      generateMLInsights();
-    }
-  }, []); // Empty dependency array - only run on mount
-
   const addExpense = () => {
     if (!amount || !date || !description.trim()) { showAlert('All fields are required.','alert-error'); return; }
     if (parseFloat(amount) <= 0) { showAlert('Amount must be greater than zero.','alert-error'); return; }
@@ -258,10 +192,9 @@ Provide insights in JSON format:
     setAmount(''); setDescription('');
     showAlert(`Expense saved for ${getName(parseInt(userID))}!`);
     
-    // Update ML insights after adding expense
-    if (!isAdmin) {
-      generateMLInsights();
-    }
+    // Dispatch custom event to notify other pages of expense change
+    console.log('Expenses: Dispatching expenseChange event');
+    window.dispatchEvent(new Event('expenseChange'));
   };
 
   const confirmBudgetOverspend = () => {
@@ -272,10 +205,8 @@ Provide insights in JSON format:
       setBudgetAlert(null);
       showAlert(`Expense saved (overspending by R${budgetAlert.overspendAmount.toFixed(2)})`, 'alert-warning');
       
-      // Update ML insights after adding expense
-      if (!isAdmin) {
-        generateMLInsights();
-      }
+      // Dispatch custom event to notify other pages of expense change
+      window.dispatchEvent(new Event('expenseChange'));
     }
   };
 
@@ -287,10 +218,8 @@ Provide insights in JSON format:
     setEditOpen(false);
     showAlert('Expense updated!');
     
-    // Update ML insights after editing expense
-    if (!isAdmin) {
-      generateMLInsights();
-    }
+    // Dispatch custom event to notify other pages of expense change
+    window.dispatchEvent(new Event('expenseChange'));
   };
 
   const confirmDelete = () => {
@@ -298,10 +227,8 @@ Provide insights in JSON format:
     setDelOpen(false);
     showAlert('Expense deleted.');
     
-    // Update ML insights after deleting expense
-    if (!isAdmin) {
-      generateMLInsights();
-    }
+    // Dispatch custom event to notify other pages of expense change
+    window.dispatchEvent(new Event('expenseChange'));
   };
 
   return (
@@ -312,66 +239,6 @@ Provide insights in JSON format:
       </div>
       {alert.show && <div className={`alert show ${alert.type}`}>{alert.msg}</div>}
 
-      {/* ── ML INSIGHTS PANEL ── */}
-      {!isAdmin && (
-        <div style={{ maxWidth: '1200px', margin: '0 auto 24px auto', padding: '0 20px' }}>
-          <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-            <div className="card-title" style={{ color: 'white', borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🤖 AI Budget Insights</span>
-              <button 
-                className="btn" 
-                onClick={generateMLInsights}
-                style={{ background: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.85rem', padding: '6px 12px' }}
-              >
-                🔄 Refresh
-              </button>
-            </div>
-            {mlInsights ? (
-              <div style={{ marginTop: '16px', display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
-              {mlInsights.spendingPatterns && mlInsights.spendingPatterns.length > 0 && (
-                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px' }}>
-                  <strong>📊 Spending Patterns:</strong>
-                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '0.9rem' }}>
-                    {mlInsights.spendingPatterns.map((pattern, idx) => <li key={idx}>{pattern}</li>)}
-                  </ul>
-                </div>
-              )}
-              {mlInsights.riskCategories && mlInsights.riskCategories.length > 0 && (
-                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px' }}>
-                  <strong>⚠️ At Risk:</strong>
-                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '0.9rem' }}>
-                    {mlInsights.riskCategories.map((cat, idx) => <li key={idx}>{cat}</li>)}
-                  </ul>
-                </div>
-              )}
-              {mlInsights.predictedOverspend && mlInsights.predictedOverspend.length > 0 && (
-                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px' }}>
-                  <strong>🔮 Predicted Overspend:</strong>
-                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '0.9rem' }}>
-                    {mlInsights.predictedOverspend.map((pred, idx) => (
-                      <li key={idx}>{pred.category} ({pred.likelihood}): {pred.reason}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {mlInsights.recommendations && mlInsights.recommendations.length > 0 && (
-                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px' }}>
-                  <strong>💡 Recommendations:</strong>
-                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '0.9rem' }}>
-                    {mlInsights.recommendations.map((rec, idx) => <li key={idx}>{rec}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-            ) : (
-              <div style={{ marginTop: '16px', fontSize: '0.9rem' }}>
-                <p>Click "Refresh" to generate AI budget insights based on your spending patterns.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="layout">
         {/* ── ADD FORM ── */}
         {!isAdmin && (
@@ -381,20 +248,20 @@ Provide insights in JSON format:
           <div className="field"><label>Student</label>
             <input type="text" value={currentUser.username} disabled /></div>
 
-          <div className="field"><label>Category</label>
+          <div className="field"><label>Category *</label>
             <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
               {categories.map(cat => <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>)}
             </select></div>
 
           <div className="row2">
-            <div className="field"><label>Amount (R)</label>
+            <div className="field"><label>Amount (R) *</label>
               <input type="number" placeholder="0.00" min="0" step="0.01"
                 value={amount} onChange={e => setAmount(e.target.value)} /></div>
-            <div className="field"><label>Date</label>
+            <div className="field"><label>Date *</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
           </div>
 
-          <div className="field"><label>Description</label>
+          <div className="field"><label>Description *</label>
             <input type="text" placeholder="e.g. Groceries at Pick n Pay"
               value={description} onChange={e => setDescription(e.target.value)} /></div>
 

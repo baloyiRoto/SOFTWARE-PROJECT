@@ -10,6 +10,7 @@ import Inventory  from './pages/Inventory';
 import RecipeGenerator from './pages/RecipeGenerator';
 import ShoppingSuggestions from './pages/ShoppingSuggestions';
 import ModuleSelection from './pages/ModuleSelection';
+import AdminTrends from './pages/AdminTrends';
 import About      from './pages/About';
 import Contact    from './pages/Contact';
 import Tutorial   from './pages/Tutorial';
@@ -19,6 +20,22 @@ function Header({ currentUser, onLogout }) {
   const location = useLocation();
   const currentModule = location.pathname.startsWith('/spendsmart') ? 'spendsmart' :
                        location.pathname.startsWith('/mealmate') ? 'mealmate' : null;
+  const isAdminTrendsPage = location.pathname === '/admin-trends';
+
+  // Don't show navigation on admin trends page, just show simple header
+  if (isAdminTrendsPage) {
+    return (
+      <header>
+        <div className="logo">Student<span>Hub</span> <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 10, fontWeight: 'normal' }}>Admin Dashboard</span></div>
+        <div className="header-actions">
+          <div className="user-chip">
+            <span>{currentUser.username}</span>
+            <button type="button" className="logout-btn" onClick={onLogout}>Log out</button>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -441,10 +458,19 @@ function App() {
       {currentUser && <Header currentUser={currentUser} onLogout={handleLogout} />}
 
       <Routes>
-        <Route path="/" element={currentUser ? <Navigate to="/modules" replace /> : <LandingPage />} />
-        <Route path="/login" element={currentUser ? <Navigate to="/modules" replace /> : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
-        <Route path="/signup" element={currentUser ? <Navigate to="/modules" replace /> : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
-        <Route path="/modules" element={<RequireAuth><ModuleSelection currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/" element={currentUser ? (currentUser.role === 'admin' ? <Navigate to="/admin-trends" replace /> : <Navigate to="/modules" replace />) : <LandingPage />} />
+        <Route path="/login" element={currentUser ? (currentUser.role === 'admin' ? <Navigate to="/admin-trends" replace /> : <Navigate to="/modules" replace />) : <LoginPage users={users} onLogin={handleLogin} onBackfillPasswordHash={handleBackfillPasswordHash} />} />
+        <Route path="/signup" element={currentUser ? (currentUser.role === 'admin' ? <Navigate to="/admin-trends" replace /> : <Navigate to="/modules" replace />) : <SignUpPage users={users} onCreateAccount={handleCreateAccount} />} />
+        <Route path="/modules" element={
+          <RequireAuth>
+            {currentUser?.role === 'admin' ? <Navigate to="/admin-trends" replace /> : <ModuleSelection currentUser={currentUser} />}
+          </RequireAuth>
+        } />
+        <Route path="/admin-trends" element={
+          <RequireAuth adminOnly>
+            <AdminTrends users={users} currentUser={currentUser} />
+          </RequireAuth>
+        } />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         
@@ -455,9 +481,17 @@ function App() {
             <Users users={users} setUsers={setUsers} nextUserID={nextUserID} setNextUserID={setNextUserID} />
           </RequireAuth>
         }/>
-        <Route path="/spendsmart/expenses"   element={<RequireAuth><Expenses   users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/spendsmart/expenses"   element={
+          <RequireAuth>
+            {currentUser?.role === 'admin' ? <Navigate to="/spendsmart/reports" replace /> : <Expenses users={users} currentUser={currentUser} />}
+          </RequireAuth>
+        } />
         <Route path="/spendsmart/categories" element={<RequireAuth><Categories currentUser={currentUser} /></RequireAuth>} />
-        <Route path="/spendsmart/budgets"    element={<RequireAuth><Budgets    users={users} currentUser={currentUser} /></RequireAuth>} />
+        <Route path="/spendsmart/budgets"    element={
+          <RequireAuth>
+            {currentUser?.role === 'admin' ? <Navigate to="/spendsmart/reports" replace /> : <Budgets users={users} currentUser={currentUser} />}
+          </RequireAuth>
+        } />
         <Route path="/spendsmart/reports"    element={<RequireAuth><Reports    users={users} currentUser={currentUser} /></RequireAuth>} />
         
         {/* MealMate Module Routes */}

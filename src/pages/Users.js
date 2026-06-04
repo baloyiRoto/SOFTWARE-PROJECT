@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { hashPassword } from '../auth';
 import '../App.css';
 
 // Users now receives users list from App.js — no more local state for users
@@ -9,10 +10,50 @@ function Users({ users, setUsers, nextUserID, setNextUserID }) {
   const [delOpen, setDelOpen]   = useState(false);
   const [delID, setDelID]       = useState(null);
   const [alert, setAlert]       = useState({ show: false, msg: '', type: '' });
+  
+  // Add user form state
+  const [addOpen, setAddOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('student');
 
   const showAlert = (msg, type = 'alert-success') => {
     setAlert({ show: true, msg, type });
     setTimeout(() => setAlert({ show: false, msg: '', type: '' }), 4000);
+  };
+
+  // ADD NEW USER
+  const addUser = async () => {
+    if (!newUsername.trim() || !newEmail.trim() || !newPassword.trim()) {
+      showAlert('All fields are required.', 'alert-error'); return;
+    }
+    
+    if (newPassword.length < 6) {
+      showAlert('Password must be at least 6 characters.', 'alert-error'); return;
+    }
+    
+    if (users.some(u => u.email.toLowerCase() === newEmail.toLowerCase())) {
+      showAlert('That email is already registered.', 'alert-error'); return;
+    }
+    
+    const passwordHash = await hashPassword(newPassword);
+    const newUser = {
+      userID: nextUserID,
+      username: newUsername.trim(),
+      email: newEmail.trim().toLowerCase(),
+      role: newRole,
+      passwordHash
+    };
+    
+    setUsers([...users, newUser]);
+    setNextUserID(nextUserID + 1);
+    setAddOpen(false);
+    setNewUsername('');
+    setNewEmail('');
+    setNewPassword('');
+    setNewRole('student');
+    showAlert(`User "${newUsername}" added successfully!`);
   };
 
   // UPDATE
@@ -45,7 +86,16 @@ function Users({ users, setUsers, nextUserID, setNextUserID }) {
       <div className="layout">
         {/* ── USER TABLE ── */}
         <div className="card user-table-full">
-          <div className="card-title">All Users</div>
+          <div className="card-title">
+            All Users
+            <button 
+              className="btn" 
+              onClick={() => setAddOpen(true)}
+              style={{ float: 'right', fontSize: '0.8rem', padding: '4px 12px' }}
+            >
+              + Add User
+            </button>
+          </div>
           <div className="table-top">
             <span className="badge-count">{users.length} records</span>
           </div>
@@ -92,6 +142,34 @@ function Users({ users, setUsers, nextUserID, setNextUserID }) {
             <div className="modal-btns">
               <button className="btn-cancel" onClick={() => setEditOpen(false)}>Cancel</button>
               <button className="btn-save"   onClick={saveEdit}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD USER MODAL */}
+      {addOpen && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <h2>Add New User</h2>
+            <div className="field"><label>Username *</label>
+              <input type="text" placeholder="e.g. john_doe"
+                value={newUsername} onChange={e => setNewUsername(e.target.value)} /></div>
+            <div className="field"><label>Email Address *</label>
+              <input type="email" placeholder="student@ac.za"
+                value={newEmail} onChange={e => setNewEmail(e.target.value)} /></div>
+            <div className="field"><label>Password *</label>
+              <input type="password" placeholder="Min. 6 characters"
+                value={newPassword} onChange={e => setNewPassword(e.target.value)} /></div>
+            <div className="field"><label>Role</label>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)}>
+                <option value="student">Student</option>
+                <option value="admin">Admin</option>
+                <option value="other">Other</option>
+              </select></div>
+            <div className="modal-btns">
+              <button className="btn-cancel" onClick={() => setAddOpen(false)}>Cancel</button>
+              <button className="btn-save" onClick={addUser}>Add User</button>
             </div>
           </div>
         </div>

@@ -24,6 +24,7 @@ function RecipeGenerator({ users = [], currentUser = {} }) {
   const [ingredientSearch, setIngredientSearch] = useState('');
   const [expandedLocations, setExpandedLocations] = useState({});
   const [expandedRecipeId, setExpandedRecipeId] = useState(null);
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState('all');
 
   const isAdmin = currentUser.role === 'admin';
   const visibleInventory = isAdmin
@@ -238,7 +239,8 @@ Format your response as JSON with these fields:
   const LOCATIONS = { 1: 'Fridge', 2: 'Cupboard', 3: 'Pantry', 4: 'Freezer' };
 
   const filteredInventory = visibleInventory.filter(item => 
-    item.name.toLowerCase().includes(ingredientSearch.toLowerCase())
+    item.name.toLowerCase().includes(ingredientSearch.toLowerCase()) &&
+    (selectedLocationFilter === 'all' || item.locationID === parseInt(selectedLocationFilter))
   );
 
   const groupedInventory = filteredInventory.reduce((groups, item) => {
@@ -276,6 +278,65 @@ Format your response as JSON with these fields:
               <button className="btn-small" onClick={selectAll}>Select All</button>
               <button className="btn-small" onClick={clearSelection}>Clear</button>
             </div>
+          </div>
+
+          {/* Location Filter Buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: '16px', flexWrap: 'wrap' }}>
+            <button
+              className={`btn-small ${selectedLocationFilter === 'all' ? 'btn' : ''}`}
+              onClick={() => setSelectedLocationFilter('all')}
+              style={{
+                background: selectedLocationFilter === 'all' ? 'var(--purple)' : 'var(--bg)',
+                color: selectedLocationFilter === 'all' ? 'white' : 'var(--text)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              🏠 All Locations
+            </button>
+            <button
+              className={`btn-small ${selectedLocationFilter === '1' ? 'btn' : ''}`}
+              onClick={() => setSelectedLocationFilter('1')}
+              style={{
+                background: selectedLocationFilter === '1' ? 'var(--purple)' : 'var(--bg)',
+                color: selectedLocationFilter === '1' ? 'white' : 'var(--text)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              🧊 Fridge
+            </button>
+            <button
+              className={`btn-small ${selectedLocationFilter === '2' ? 'btn' : ''}`}
+              onClick={() => setSelectedLocationFilter('2')}
+              style={{
+                background: selectedLocationFilter === '2' ? 'var(--purple)' : 'var(--bg)',
+                color: selectedLocationFilter === '2' ? 'white' : 'var(--text)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              🗄️ Cupboard
+            </button>
+            <button
+              className={`btn-small ${selectedLocationFilter === '3' ? 'btn' : ''}`}
+              onClick={() => setSelectedLocationFilter('3')}
+              style={{
+                background: selectedLocationFilter === '3' ? 'var(--purple)' : 'var(--bg)',
+                color: selectedLocationFilter === '3' ? 'white' : 'var(--text)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              📦 Pantry
+            </button>
+            <button
+              className={`btn-small ${selectedLocationFilter === '4' ? 'btn' : ''}`}
+              onClick={() => setSelectedLocationFilter('4')}
+              style={{
+                background: selectedLocationFilter === '4' ? 'var(--purple)' : 'var(--bg)',
+                color: selectedLocationFilter === '4' ? 'white' : 'var(--text)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              ❄️ Freezer
+            </button>
           </div>
 
           <div className="field" style={{ marginTop: '16px' }}>

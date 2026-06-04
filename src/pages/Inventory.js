@@ -80,6 +80,15 @@ function Inventory({ users = [], currentUser = {} }) {
     setIsAutoClassifying(true);
     
     try {
+      const systemPrompt = 'You are a food storage classification assistant. Given a food item, return ONLY a JSON object with two fields: category and location.\n\nIMPORTANT: Meat, poultry, and fish ALWAYS go in Freezer by default. Never put any meat, chicken, beef, pork, fish, lamb, or mince in Pantry.\n\nLocation rules (strictly follow these):\n- Freezer: ALL raw meat, chicken, beef, pork, fish, lamb, mince, seafood\n- Fridge: milk, cheese, yogurt, butter, eggs, cream, fresh vegetables, fresh fruit, deli meat, tofu, opened condiments, cooked leftovers\n- Pantry: rice, pasta, flour, sugar, salt, spices, oats, cereal, bread, crackers, canned goods, oil, vinegar, dried beans, nuts, coffee, tea\n\nMeat NEVER goes in Pantry. This is the highest priority rule.\n\nCategory rules:\n- Grains: rice, pasta, bread, oats, cereal, flour, couscous, quinoa\n- Dairy: milk, cheese, yogurt, butter, cream, eggs\n- Meat: chicken, beef, pork, fish, lamb, mince\n- Vegetables: any vegetable\n- Fruits: any fruit\n- Condiments: sauces, oils, vinegar, spices, salt\n- Other: anything that doesn\'t fit above\n\nReturn ONLY valid JSON, example: {"category": "Grains", "location": "Pantry"}\nNo explanation, no extra text.';
+      
+      const userPrompt = `Classify this item: ${itemName}`;
+      
+      console.log('=== AI Classification Debug ===');
+      console.log('Item Name:', itemName);
+      console.log('System Prompt:', systemPrompt);
+      console.log('User Prompt:', userPrompt);
+      
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -89,17 +98,28 @@ function Inventory({ users = [], currentUser = {} }) {
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: [
-            { role: 'system', content: 'You are a food classification assistant. Classify food items into one of these categories: Vegetables, Fruits, Dairy, Meat, Grains, Condiments, Beverages, Other. Respond with ONLY the category name, nothing else.' },
-            { role: 'user', content: `Classify this item: ${itemName}` }
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
           ],
-          temperature: 0.3,
-          max_tokens: 10
+          temperature: 0.1,
+          max_tokens: 50,
+          response_format: { type: 'json_object' }
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        const category = data.choices[0].message.content.trim();
+        const result = data.choices[0].message.content.trim();
+        
+        console.log('Raw AI Response:', result);
+        
+        // Parse the JSON result (format: { "category": "<category>", "location": "<location>" })
+        const parsed = JSON.parse(result);
+        const category = parsed.category;
+        const location = parsed.location;
+        
+        console.log('Parsed Category:', category);
+        console.log('Parsed Location:', location);
         
         // Map category name to ID
         const categoryMap = {
@@ -113,11 +133,36 @@ function Inventory({ users = [], currentUser = {} }) {
           'Other': 8
         };
         
-        setSuggestedCategory(categoryMap[category] || 8);
+        // Map location name to ID
+        const locationMap = {
+          'Fridge': '1',
+          'Cupboard': '2',
+          'Pantry': '3',
+          'Pantry/Cupboard': '3',
+          'Freezer': '4',
+          'Fresh Produce': '3'
+        };
+        
+        // Default unit to pieces since AI no longer provides it
+        const unit = 'pieces';
+        
+        const finalCategoryID = categoryMap[category] || 8;
+        const finalLocationID = locationMap[location] || '1';
+        
+        console.log('Final Category ID:', finalCategoryID);
+        console.log('Final Location ID:', finalLocationID);
+        console.log('Final Unit:', unit);
+        console.log('============================');
+        
+        setSuggestedCategory(finalCategoryID);
+        setLocationID(finalLocationID);
+        setUnit(unit);
       }
     } catch {
-      // If AI fails, default to Other
+      // If AI fails, default to Other, Pantry, and pieces
       setSuggestedCategory(8);
+      setLocationID('1');
+      setUnit('pieces');
     } finally {
       setIsAutoClassifying(false);
     }
@@ -169,7 +214,7 @@ function Inventory({ users = [], currentUser = {} }) {
         itemID: nextID + validEntries.indexOf(entry),
         userID: currentUser.userID,
         name: entry.name.trim(),
-        locationID: parseInt(entry.locationID),
+        locationID: 1, // Default to Pantry for bulk add (ML auto-detection not implemented for bulk)
         categoryID: 8, // Default to Other for bulk add, could be enhanced with AI
         quantity: parseFloat(entry.quantity),
         unit: entry.unit,
@@ -178,13 +223,13 @@ function Inventory({ users = [], currentUser = {} }) {
       
       setInventory(prev => [...newItems, ...prev]);
       setNextID(prev => prev + newItems.length);
-      setInventoryEntries([{ name: '', locationID: '1', quantity: '1', unit: 'pieces', expiryDate: '' }]);
+      setInventoryEntries([{ name: '', quantity: '1', unit: 'pieces', expiryDate: '' }]);
       showAlert(`${newItems.length} items added to inventory!`);
     }
   };
 
   const addInventoryEntry = () => {
-    setInventoryEntries([...inventoryEntries, { name: '', locationID: '1', quantity: '1', unit: 'pieces', expiryDate: '' }]);
+    setInventoryEntries([...inventoryEntries, { name: '', quantity: '1', unit: 'pieces', expiryDate: '' }]);
   };
 
   const removeInventoryEntry = (index) => {
@@ -267,15 +312,9 @@ function Inventory({ users = [], currentUser = {} }) {
 
               {suggestedCategory && (
                 <div style={{ padding: '8px 12px', background: '#f0fdf4', borderRadius: '6px', marginBottom: '16px', fontSize: '0.85rem', color: '#166534' }}>
-                  🤖 AI classified as: <strong>{CATEGORIES[suggestedCategory]}</strong>
+                  🤖 AI classified as: <strong>{CATEGORIES[suggestedCategory]}</strong> in <strong>{LOCATIONS[locationID]}</strong>
                 </div>
               )}
-
-              <div className="field"><label>Location</label>
-                <select value={locationID} onChange={e => setLocationID(e.target.value)}>
-                  {Object.entries(LOCATIONS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select>
-              </div>
 
               <div className="row2">
                 <div className="field"><label>Quantity</label>
@@ -316,23 +355,17 @@ function Inventory({ users = [], currentUser = {} }) {
                     </button>
                   </div>
 
-                  <div className="field"><label>Item Name</label>
+                  <div className="field"><label>Item Name *</label>
                     <input type="text" placeholder="e.g. Milk, Eggs, Rice"
                       value={entry.name} onChange={e => updateInventoryEntry(index, 'name', e.target.value)} />
                   </div>
 
-                  <div className="field"><label>Location</label>
-                    <select value={entry.locationID} onChange={e => updateInventoryEntry(index, 'locationID', e.target.value)}>
-                      {Object.entries(LOCATIONS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                    </select>
-                  </div>
-
                   <div className="row2">
-                    <div className="field"><label>Quantity</label>
+                    <div className="field"><label>Quantity *</label>
                       <select value={entry.quantity} onChange={e => updateInventoryEntry(index, 'quantity', e.target.value)}>
                         {getQuantityOptions(entry.unit).map(q => <option key={q} value={q}>{q}</option>)}
                       </select></div>
-                    <div className="field"><label>Unit</label>
+                    <div className="field"><label>Unit *</label>
                       <select value={entry.unit} onChange={e => updateInventoryEntry(index, 'unit', e.target.value)}>
                         {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                       </select></div>
@@ -392,18 +425,11 @@ function Inventory({ users = [], currentUser = {} }) {
             <div className="field"><label>Item Name</label>
               <input type="text" value={editItem.name}
                 onChange={e => setEditItem({ ...editItem, name: e.target.value })} /></div>
-            <div className="row2">
-              <div className="field"><label>Location</label>
-                <select value={editItem.locationID}
-                  onChange={e => setEditItem({ ...editItem, locationID: parseInt(e.target.value) })}>
-                  {Object.entries(LOCATIONS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select></div>
-              <div className="field"><label>Category</label>
-                <select value={editItem.categoryID}
-                  onChange={e => setEditItem({ ...editItem, categoryID: parseInt(e.target.value) })}>
-                  {Object.entries(CATEGORIES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select></div>
-            </div>
+            <div className="field"><label>Category</label>
+              <select value={editItem.categoryID}
+                onChange={e => setEditItem({ ...editItem, categoryID: parseInt(e.target.value) })}>
+                {Object.entries(CATEGORIES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select></div>
             <div className="row2">
               <div className="field"><label>Quantity</label>
                 <select value={editItem.quantity}

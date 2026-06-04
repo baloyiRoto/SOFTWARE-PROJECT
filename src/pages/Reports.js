@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import '../App.css';
@@ -11,7 +11,6 @@ const INITIAL_CATS = [
   { categoryID: 5, categoryName: 'Entertainment', description: 'Streaming, outings and hobbies' },
   { categoryID: 6, categoryName: 'Data',          description: 'Mobile data and internet' },
 ];
-const CAT_COLORS = { 1:'#6c3fc5', 2:'#2196F3', 3:'#E91E63', 4:'#FF9800', 5:'#4CAF50', 6:'#00BCD4' };
 
 const INITIAL_EXPENSES = [
   { expenseID:1,  userID:1, categoryID:1, amount:250.00,  description:'Groceries at Pick n Pay',    expenseDate:'2026-04-01' },
@@ -69,6 +68,8 @@ function Reports({ users = [], currentUser = {} }) {
     catch { return INITIAL_BUDGETS; }
   });
 
+  const isAdmin = currentUser.role === 'admin';
+
   // Re-read expenses & budgets whenever the page mounts (picks up changes from other pages)
   useEffect(() => {
     const handleStorageChange = () => {
@@ -82,11 +83,15 @@ function Reports({ users = [], currentUser = {} }) {
 
     // Listen for storage changes from other tabs/windows
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('expenseChange', handleStorageChange);
     
     // Also check on mount
     handleStorageChange();
 
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('expenseChange', handleStorageChange);
+    };
   }, []);
 
   // Additional listener specifically for budget changes to ensure immediate refresh
@@ -111,7 +116,6 @@ function Reports({ users = [], currentUser = {} }) {
   const [filterStudent, setFilterStudent] = useState('all');
   const [filterCat,     setFilterCat]     = useState('all');
 
-  const isAdmin = currentUser.role === 'admin';
   const scopedExpenses = isAdmin
     ? expenses
     : expenses.filter(expense => expense.userID === currentUser.userID);
@@ -141,7 +145,7 @@ function Reports({ users = [], currentUser = {} }) {
   const highest       = filtered.length ? Math.max(...filtered.map(e => e.amount)) : 0;
   const remaining     = totalBudgeted - totalSpent;
 
-  // Calculate budget vs actual by category
+  // Calculate budget vs actual by category, separated by month
   const budgetVsActual = categories.map(cat => {
     const catBudget = filteredBudgets
       .filter(b => b.categoryID === cat.categoryID)
@@ -160,6 +164,36 @@ function Reports({ users = [], currentUser = {} }) {
     };
   }).filter(c => c.budget > 0 || c.spent > 0);
 
+  // Calculate budget vs actual by month (for separating budgets by month)
+  const budgetVsActualByMonth = [];
+  const months = [...new Set(filteredBudgets.map(b => b.month))];
+  const years = [...new Set(filteredBudgets.map(b => b.year))];
+  
+  months.forEach(month => {
+    years.forEach(year => {
+      const monthBudgets = filteredBudgets.filter(b => b.month === month && b.year === year);
+      const monthExpenses = filtered.filter(e => {
+        const expenseDate = new Date(e.expenseDate);
+        return expenseDate.getMonth() + 1 === month && expenseDate.getFullYear() === year;
+      });
+      
+      const monthBudgetTotal = monthBudgets.reduce((sum, b) => sum + b.amount, 0);
+      const monthSpentTotal = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      
+      if (monthBudgetTotal > 0 || monthSpentTotal > 0) {
+        budgetVsActualByMonth.push({
+          month,
+          year,
+          monthName: new Date(year, month - 1).toLocaleString('default', { month: 'long' }),
+          budget: monthBudgetTotal,
+          spent: monthSpentTotal,
+          overspent: monthSpentTotal > monthBudgetTotal && monthBudgetTotal > 0 ? monthSpentTotal - monthBudgetTotal : 0,
+          isOverspent: monthSpentTotal > monthBudgetTotal && monthBudgetTotal > 0
+        });
+      }
+    });
+  });
+
   // Spending by category (bar chart)
   const byCat = categories.map(cat => {
     const spent = filtered
@@ -167,19 +201,6 @@ function Reports({ users = [], currentUser = {} }) {
       .reduce((s, e) => s + e.amount, 0);
     return { id: cat.categoryID, name: cat.categoryName, spent };
   }).filter(c => c.spent > 0);
-  const maxSpent = byCat.length ? Math.max(...byCat.map(c => c.spent)) : 1;
-
-  // Spending by student — uses LIVE users list so new users appear
-  const reportUsers = isAdmin ? users : users.filter(user => user.userID === currentUser.userID);
-  const byStudent = reportUsers.map(u => {
-    const spent = filtered
-      .filter(e => e.userID === u.userID)
-      .reduce((s, e) => s + e.amount, 0);
-    const budget = filteredBudgets
-      .filter(b => b.userID === u.userID)
-      .reduce((s, b) => s + b.amount, 0);
-    return { id: u.userID, name: u.username, spent, budget };
-  }).filter(s => s.spent > 0 || s.budget > 0);
 
   const exportSummary = {
     totalSpent: expenses.reduce((sum, expense) => sum + expense.amount, 0),
@@ -243,10 +264,6 @@ function Reports({ users = [], currentUser = {} }) {
   };
 
   const handleExportPDF = () => {
-    if (!isAdmin) {
-      return;
-    }
-
     const generatedAt = new Date().toLocaleString();
     const doc = new jsPDF();
 
@@ -519,36 +536,39 @@ function Reports({ users = [], currentUser = {} }) {
 
           {/* Budget vs Actual per Student */}
           <div className="card">
-            <div className="card-title">Budget vs Actual</div>
-            {byStudent.length === 0
+            <div className="card-title">Budget vs Actual by Month</div>
+            {budgetVsActualByMonth.length === 0
               ? <p style={{ color:'var(--muted)', fontSize:'0.88rem' }}>No data available.</p>
               : <table>
                 <thead>
                   <tr>
-                    <th>Student</th>
+                    <th>Month</th>
+                    <th>Year</th>
                     <th>Budgeted</th>
                     <th>Spent</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {byStudent.sort((a, b) => b.spent - a.spent).map(s => {
-                    const over = s.spent > s.budget && s.budget > 0;
-                    const pct  = s.budget > 0 ? Math.min((s.spent / s.budget) * 100, 100) : 0;
+                  {budgetVsActualByMonth.sort((a, b) => b.year - a.year || b.month - a.month).map(m => {
+                    const over = m.spent > m.budget && m.budget > 0;
+                    const pct  = m.budget > 0 ? Math.min((m.spent / m.budget) * 100, 100) : 0;
                     return (
-                      <tr key={s.id}>
-                        <td><strong>{s.name}</strong></td>
-                        <td className="amount-cell">R {s.budget.toFixed(2)}</td>
+                      <tr key={`${m.year}-${m.month}`}>
+                        <td><strong>{m.monthName}</strong></td>
+                        <td>{m.year}</td>
+                        <td className="amount-cell">{isAdmin ? '[Hidden]' : `R ${m.budget.toFixed(2)}`}</td>
                         <td className="amount-cell" style={{ color: over ? '#e11d48' : 'inherit' }}>
-                          R {s.spent.toFixed(2)}
+                          {isAdmin ? '[Hidden]' : `R ${m.spent.toFixed(2)}`}
                         </td>
                         <td>
-                          {s.budget === 0
-                            ? <span className="role-pill" style={{ background:'#f3f4f6', color:'#6b7280' }}>No budget</span>
-                            : over
-                              ? <span className="role-pill" style={{ background:'#fee2e2', color:'#991b1b' }}>Over budget</span>
-                              : <span className="role-pill" style={{ background:'#dcfce7', color:'#166534' }}>{Math.round(pct)}% used</span>
-                          }
+                          {isAdmin ? '[Hidden]' : (
+                            m.budget === 0
+                              ? <span className="role-pill" style={{ background:'#f3f4f6', color:'#6b7280' }}>No budget</span>
+                              : over
+                                ? <span className="role-pill" style={{ background:'#fee2e2', color:'#991b1b' }}>Over budget</span>
+                                : <span className="role-pill" style={{ background:'#dcfce7', color:'#166534' }}>{Math.round(pct)}% used</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -559,6 +579,7 @@ function Reports({ users = [], currentUser = {} }) {
           </div>
         </div>
       )}
+
 
       {/* ── FULL EXPENSE TABLE ── */}
       <div className="card">
@@ -587,8 +608,8 @@ function Reports({ users = [], currentUser = {} }) {
                     {isAdmin && <td><strong>{getName(e.userID)}</strong></td>}
                     <td><span className="cat-pill">{catMap[e.categoryID] || 'Unknown'}</span></td>
                     <td className="amount-cell">R {parseFloat(e.amount).toFixed(2)}</td>
-                    <td style={{ fontSize:'0.82rem', color:'var(--muted)' }}>{e.description}</td>
-                    <td>{e.expenseDate}</td>
+                    <td style={{ fontSize:'0.82rem', color:'var(--muted)' }}>{isAdmin ? '[Hidden]' : e.description}</td>
+                    <td>{isAdmin ? '[Hidden]' : e.expenseDate}</td>
                   </tr>
                 ))}
               </tbody>

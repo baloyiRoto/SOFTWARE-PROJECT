@@ -41,7 +41,7 @@ function Budgets({ users = [], currentUser = {} }) {
     try { const s = localStorage.getItem('ss_budgets'); return s ? JSON.parse(s) : INITIAL_BUDGETS; }
     catch { return INITIAL_BUDGETS; }
   });
-  const [categories] = useState(() => {
+  const [categories, setCategories] = useState(() => {
     try { const s = localStorage.getItem('ss_categories'); return s ? JSON.parse(s) : INITIAL_CATS; }
     catch { return INITIAL_CATS; }
   });
@@ -57,23 +57,32 @@ function Budgets({ users = [], currentUser = {} }) {
   useEffect(() => { localStorage.setItem('ss_budgets', JSON.stringify(budgets)); }, [budgets]);
   useEffect(() => { localStorage.setItem('ss_budgets_nid', String(nextID)); }, [nextID]);
   useEffect(() => { localStorage.setItem('ss_expenses', JSON.stringify(expenses)); }, [expenses]);
+  useEffect(() => { localStorage.setItem('ss_categories', JSON.stringify(categories)); }, [categories]);
 
   // Re-read expenses from localStorage when component mounts or when expenses change in other pages
   useEffect(() => {
     const handleStorageChange = () => {
       try {
         const e = localStorage.getItem('ss_expenses');
-        if (e) setExpenses(JSON.parse(e));
+        if (e) {
+          const parsed = JSON.parse(e);
+          console.log('Budgets: Reloading expenses from localStorage', parsed);
+          setExpenses(parsed);
+        }
       } catch {}
     };
 
     // Listen for storage changes from other tabs/windows
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('expenseChange', handleStorageChange);
     
     // Also check on mount
     handleStorageChange();
 
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('expenseChange', handleStorageChange);
+    };
   }, []);
 
   // Listen for budget changes from other pages
@@ -92,6 +101,25 @@ function Budgets({ users = [], currentUser = {} }) {
     return () => {
       window.removeEventListener('storage', handleBudgetChange);
       window.removeEventListener('budgetChange', handleBudgetChange);
+    };
+  }, []);
+
+  // Listen for category changes from other pages
+  useEffect(() => {
+    const handleCategoryChange = () => {
+      try {
+        const c = localStorage.getItem('ss_categories');
+        if (c) setCategories(JSON.parse(c));
+      } catch {}
+    };
+
+    window.addEventListener('storage', handleCategoryChange);
+    window.addEventListener('categoryChange', handleCategoryChange);
+    handleCategoryChange();
+
+    return () => {
+      window.removeEventListener('storage', handleCategoryChange);
+      window.removeEventListener('categoryChange', handleCategoryChange);
     };
   }, []);
 
@@ -146,11 +174,12 @@ function Budgets({ users = [], currentUser = {} }) {
   }).filter(c => c.isOverspent);
 
   // Form state — default to first user in live list
+  const currentDate = new Date();
   const [userID,     setUserID]     = useState('');
   const [categoryID, setCategoryID] = useState('1');
   const [amount,     setAmount]     = useState('');
-  const [month,      setMonth]      = useState('4');
-  const [year,       setYear]       = useState('2026');
+  const [month,      setMonth]      = useState(String(currentDate.getMonth() + 1));
+  const [year,       setYear]       = useState(String(currentDate.getFullYear()));
   const [editOpen,   setEditOpen]   = useState(false);
   const [editBudget, setEditBudget] = useState(null);
   const [delOpen,    setDelOpen]    = useState(false);
@@ -383,7 +412,7 @@ function Budgets({ users = [], currentUser = {} }) {
 
           {!multiAddMode ? (
             <>
-              <div className="field"><label>Category</label>
+              <div className="field"><label>Category *</label>
                 <select value={categoryID} onChange={e => setCategoryID(e.target.value)}>
                   {categories.map(cat => <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>)}
                 </select></div>
@@ -393,29 +422,29 @@ function Budgets({ users = [], currentUser = {} }) {
                   value={amount} onChange={e => setAmount(e.target.value)} /></div>
 
               <div className="row2">
-                <div className="field"><label>Month</label>
+                <div className="field"><label>Month *</label>
                   <select value={month} onChange={e => setMonth(e.target.value)}>
                     {MONTHS.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
                   </select></div>
-                <div className="field"><label>Year</label>
+                <div className="field"><label>Year *</label>
                   <select value={year} onChange={e => setYear(e.target.value)}>
-                    {[2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+                    {[2024,2025,2026,2027,2028].map(y => <option key={y} value={y}>{y}</option>)}
                   </select></div>
               </div>
             </>
           ) : (
             <>
-              <div className="field"><label>Month</label>
+              <div className="field"><label>Month *</label>
                 <select value={month} onChange={e => setMonth(e.target.value)}>
                   {MONTHS.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
                 </select></div>
-              <div className="field"><label>Year</label>
+              <div className="field"><label>Year *</label>
                 <select value={year} onChange={e => setYear(e.target.value)}>
-                  {[2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+                  {[2024,2025,2026,2027,2028].map(y => <option key={y} value={y}>{y}</option>)}
                 </select></div>
               
               <div style={{ marginTop: 16 }}>
-                <label style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 8, display: 'block' }}>Budget Entries</label>
+                <label style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 8, display: 'block' }}>Budget Entries *</label>
                 {budgetEntries.map((entry, index) => (
                   <div key={index} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                     <div className="field" style={{ flex: 1 }}>
@@ -429,7 +458,7 @@ function Budgets({ users = [], currentUser = {} }) {
                     <div className="field" style={{ flex: 1 }}>
                       <input 
                         type="number" 
-                        placeholder="Amount (R)" 
+                        placeholder="Amount (R) *" 
                         min="0" 
                         step="0.01"
                         value={entry.amount}

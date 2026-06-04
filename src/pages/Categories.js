@@ -81,6 +81,9 @@ function Categories({ currentUser = {} }) {
     setNextID(nextID + 1);
     setNewName(''); setNewDesc('');
     showAlert(`Category "${newName.trim()}" added!`);
+    
+    // Dispatch custom event to notify other pages of category change
+    window.dispatchEvent(new Event('categoryChange'));
   };
 
   // UPDATE
@@ -91,6 +94,9 @@ function Categories({ currentUser = {} }) {
     setCategories(categories.map(c => c.categoryID === editCat.categoryID ? editCat : c));
     setEditOpen(false);
     showAlert(`Category "${editCat.categoryName}" updated!`);
+    
+    // Dispatch custom event to notify other pages of category change
+    window.dispatchEvent(new Event('categoryChange'));
   };
 
   // DELETE
@@ -99,6 +105,9 @@ function Categories({ currentUser = {} }) {
     setCategories(categories.filter(c => c.categoryID !== delID));
     setDelOpen(false);
     showAlert(`Category "${name}" deleted.`);
+    
+    // Dispatch custom event to notify other pages of category change
+    window.dispatchEvent(new Event('categoryChange'));
   };
 
   return (
