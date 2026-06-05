@@ -1,70 +1,121 @@
-# Getting Started with Create React App
+# 🎓 StudentHub
+ 
+> A dual-module student lifestyle management web application built with React.
+ 
+🌐 **Live Demo:** [studenthub-spendwise.netlify.app](https://studenthub-spendwise.netlify.app/)
+ 
+StudentHub helps students take control of their finances and meals through two integrated modules: **SpendSmart** for expense and budget tracking, and **MealMate** for food inventory and recipe planning.
+ 
+---
+ 
+## 📌 Overview
+ 
+Managing money and meals are two of the biggest daily challenges for students. StudentHub brings both into a single platform with role-based access so that admins can monitor trends across all users while individual students manage their own data privately.
+ 
+---
+ 
+## ✨ Features
+ 
+### 💸 SpendSmart Module
+- Track personal expenses by category
+- Set and monitor budgets
+- Generate and export PDF financial reports
+- Admin dashboard with spending trends across all users
+### 🍽️ MealMate Module
+- Manage a personal food inventory
+- Generate recipe suggestions based on available ingredients
+- Get smart shopping list recommendations
+### 🔐 Authentication & Access Control
+- User registration and login with hashed passwords
+- Role-based routing — admin users see a different interface than regular users
+- Protected routes prevent unauthorized access
+---
+ 
+## 🛠️ Tech Stack
+ 
+| Technology | Purpose |
+|---|---|
+| React 19 | Frontend UI framework |
+| React Router v7 | Client-side routing |
+| jsPDF + AutoTable | PDF report generation |
+| Context API | Global auth state management |
+| CSS (custom) | Styling and responsive layout |
+ 
+---
+ 
+## 🚀 Getting Started
+ 
+### Prerequisites
+- Node.js (v16 or higher)
+- npm
+### Installation
+ 
+```bash
+# Clone the repository
+git clone https://github.com/Lesego-Mowaisi/SOFTWARE-PROJECT.git
+cd SOFTWARE-PROJECT
+ 
+# Install dependencies
+npm install
+ 
+# Start the development server
+npm start
+```
+ 
+The app will open at [http://localhost:3000](http://localhost:3000).
+ 
+> Or skip setup entirely and use the **[live deployed version](https://studenthub-spendwise.netlify.app/)**.
+ 
+### Test Credentials
+ 
+| Role | Username | Password |
+|---|---|---|
+| Admin | `admin` | `admin123` |
+| Student | `alice` | `password` |
+ 
+> **Note:** This project currently uses mock data (`src/data/mockData.js`). No backend or database setup is required.
+ 
+---
+ 
+## 📁 Project Structure
+ 
+```
+src/
+├── context/
+│   ├── AuthContext.js        # Global authentication state
+│   └── ProtectedRoute.js     # Route guard component
+├── data/
+│   └── mockData.js           # Mock users, expenses, budgets
+├── pages/
+│   ├── Login.js / Register.js
+│   ├── Dashboard.js
+│   ├── Expenses.js           # SpendSmart: expense CRUD
+│   ├── Budgets.js            # SpendSmart: budget management
+│   ├── Categories.js         # SpendSmart: category management
+│   ├── Reports.js            # SpendSmart: PDF reports
+│   ├── AdminTrends.js        # Admin-only analytics
+│   ├── Inventory.js          # MealMate: food inventory
+│   ├── RecipeGenerator.js    # MealMate: recipe suggestions
+│   └── ShoppingSuggestions.js# MealMate: shopping list
+├── auth.js                   # Password hashing utility
+├── App.js                    # Root component and routing
+└── App.css                   # Global styles
+```
+---
+ 
+## 👤 Contributions
+ 
+****
+| Team Member | GitHub |
+|---|---|
+| Kgomo MJ| |
+| Baloyi R | |
+| Matabene KT | |
+| Motileng BH | |
+| Mowaisi LT | [@Lesego-Mowaisi](https://github.com/Lesego-Mowaisi) |
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
-
-## Available Scripts
-
-In the project directory, you can run:
-
-### `npm start`
-
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+ 
+## 📄 License
+ 
+This project was developed as a final-year software engineering project. All rights reserved.
