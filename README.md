@@ -110,7 +110,7 @@ src/
 |---|---|
 | Kgomo MJ | [@mapk6-apl](https://github.com/mapk6-apl) |
 | Baloyi R | [@baloyiRoto](https://github.com/baloyiRoto) |
-| Matabene KT | [@KatXPanda](https://github.com/KatXPanda) |
+| Matabane KT | [@KatXPanda](https://github.com/KatXPanda) |
 | Motileng BH | [@Boipelo-85](https://github.com/Boipelo-85) |
 | Mowaisi LT | [@Lesego-Mowaisi](https://github.com/Lesego-Mowaisi) |
 
